@@ -1,5 +1,6 @@
 // Farming CBA Tool - Newcastle Business School
-// Fully upgraded script with working tabs, CBA, simulation, Excel import/exports, and Copilot helper
+// Fully upgraded script with working tabs, CBA, simulation, Excel import/exports, Copilot helper,
+// and optional trial calibration blocks (capital assets + raw plot processing).
 
 (() => {
   "use strict";
@@ -15,11 +16,12 @@
 
   const horizons = [5, 10, 15, 20, 25];
 
-  // ---------- MODEL ----------
+  // ---------- ID HELPER ----------
   function uid() {
     return Math.random().toString(36).slice(2, 10);
   }
 
+  // ---------- CORE MODEL ----------
   const model = {
     project: {
       name: "Nitrogen Optimization Trial",
@@ -207,7 +209,6 @@
       model.outputs.forEach(o => {
         if (!(o.id in t.deltas)) t.deltas[o.id] = 0;
       });
-      // Backward compatibility mapping for labour cost and adoption
       if (typeof t.labourCost === "undefined") {
         t.labourCost = Number(t.annualCost || 0) || 0;
       }
@@ -272,6 +273,477 @@
       toast.classList.remove("show");
       setTimeout(() => toast.remove(), 200);
     }, 3500);
+  }
+
+  // ---------- OPTIONAL TRIAL CALIBRATION BLOCKS ----------
+  // Capital assets used for soil amendment machinery and implements.
+  const CAPITAL_ASSETS = {
+    deepRipper5Tyne: {
+      id: "deepRipper5Tyne",
+      label: "Pre sow amendment 5 tyne ripper",
+      purchasePriceAud: 125000,
+      expectedLifeYears: 10,
+      utilisationHaPerYear: 3300,
+      notes: "Used for deep organic matter and gypsum style amendments"
+    },
+    speedTiller10m: {
+      id: "speedTiller10m",
+      label: "Speed tiller 10 m",
+      purchasePriceAud: 259000,
+      expectedLifeYears: 10,
+      utilisationHaPerYear: 3300,
+      notes: "Used for soil preparation passes"
+    },
+    airSeeder12m: {
+      id: "airSeeder12m",
+      label: "Air seeder 12 m",
+      purchasePriceAud: 162800,
+      expectedLifeYears: 10,
+      utilisationHaPerYear: 3300,
+      notes: "Standard seeding unit"
+    },
+    boomSpray36m: {
+      id: "boomSpray36m",
+      label: "36 m boomspray",
+      purchasePriceAud: 792000,
+      expectedLifeYears: 10,
+      utilisationHaPerYear: 3300,
+      notes: "Used for herbicide, fungicide, insecticide passes"
+    }
+  };
+
+  // Baseline cropping costs per hectare (common to all plots).
+  const BASELINE_CROPPING_COSTS = {
+    seedAndFertiliserPerHa: 0,
+    herbicidePerHa: 0,
+    fungicidePerHa: 0,
+    insecticidePerHa: 0,
+    fuelAndMachineryPerHa: 0,
+    labourPerHa: 0
+  };
+
+  // Trial treatment configuration based on 2022 faba bean sheet.
+  const TRIAL_TREATMENT_CONFIG = [
+    {
+      id: "control",
+      label: "Control",
+      category: "Baseline practice",
+      controlFlag: true,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Standard practice with no deep amendments"
+      },
+      costs: {
+        treatmentInputCostPerHa: 0,
+        labourCostPerHa: 0,
+        additionalOperatingCostPerHa: 0,
+        capitalDepreciationPerHa: 0
+      },
+      capitalAssets: []
+    },
+    {
+      id: "deep_om_cp1",
+      label: "Deep organic matter (CP1)",
+      category: "Soil amendment",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Deep organic matter incorporation at 15 t/ha"
+      },
+      costs: {
+        treatmentInputCostPerHa: 16500,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: ["deepRipper5Tyne"]
+    },
+    {
+      id: "deep_om_cp1_plus_liq_gypsum_cht",
+      label: "Deep OM (CP1) + liquid gypsum (CHT)",
+      category: "Soil amendment",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Combination of deep OM and liquid gypsum"
+      },
+      costs: {
+        treatmentInputCostPerHa: 16850,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: ["deepRipper5Tyne"]
+    },
+    {
+      id: "deep_gypsum",
+      label: "Deep gypsum",
+      category: "Soil amendment",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Deep placement gypsum at 5 t/ha"
+      },
+      costs: {
+        treatmentInputCostPerHa: 500,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: ["deepRipper5Tyne"]
+    },
+    {
+      id: "deep_om_cp1_plus_pam",
+      label: "Deep OM (CP1) + PAM",
+      category: "Soil amendment",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Deep OM with polyacrylamide"
+      },
+      costs: {
+        treatmentInputCostPerHa: null,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: ["deepRipper5Tyne"]
+    },
+    {
+      id: "deep_om_cp1_plus_ccm",
+      label: "Deep OM (CP1) + carbon coated mineral (CCM)",
+      category: "Soil amendment",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Deep OM plus CCM blend"
+      },
+      costs: {
+        treatmentInputCostPerHa: 21225,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: ["deepRipper5Tyne"]
+    },
+    {
+      id: "deep_ccm_only",
+      label: "Deep carbon coated mineral (CCM) only",
+      category: "Soil amendment",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "CCM at 5 t/ha without deep OM"
+      },
+      costs: {
+        treatmentInputCostPerHa: 3225,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: ["deepRipper5Tyne"]
+    },
+    {
+      id: "deep_om_cp2_plus_gypsum",
+      label: "Deep OM + gypsum (CP2)",
+      category: "Soil amendment",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Alternative deep OM and gypsum mix"
+      },
+      costs: {
+        treatmentInputCostPerHa: 24000,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: ["deepRipper5Tyne"]
+    },
+    {
+      id: "deep_liq_gypsum_cht",
+      label: "Deep liquid gypsum (CHT)",
+      category: "Soil amendment",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Liquid gypsum at 0.5 t/ha"
+      },
+      costs: {
+        treatmentInputCostPerHa: 350,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: ["deepRipper5Tyne"]
+    },
+    {
+      id: "surface_silicon",
+      label: "Surface silicon",
+      category: "Surface amendment",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Surface applied silicon at 2 t/ha"
+      },
+      costs: {
+        treatmentInputCostPerHa: null,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: []
+    },
+    {
+      id: "deep_liq_npkS",
+      label: "Deep liquid NPKS",
+      category: "Nutrient injection",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Deep injected liquid NPKS at 750 L/ha"
+      },
+      costs: {
+        treatmentInputCostPerHa: null,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: ["deepRipper5Tyne"]
+    },
+    {
+      id: "deep_ripping_only",
+      label: "Deep ripping only",
+      category: "Mechanical only",
+      controlFlag: false,
+      agronomy: {
+        mean_yield_t_ha: null,
+        std_yield_t_ha: null,
+        plantsPerM2: null,
+        notes: "Deep ripping without added material"
+      },
+      costs: {
+        treatmentInputCostPerHa: 0,
+        labourCostPerHa: null,
+        additionalOperatingCostPerHa: null,
+        capitalDepreciationPerHa: null
+      },
+      capitalAssets: ["deepRipper5Tyne"]
+    }
+  ];
+
+  // Raw plot data container for trial calibration.
+  const RAW_PLOTS = [
+    // Paste each plot row here as an object if you want automatic aggregation.
+  ];
+
+  const LABOUR_COLUMNS = [
+    "Pre sowing Labour",
+    "Amendment Labour",
+    "Sowing Labour",
+    "Herbicide Labour",
+    "Herbicide Labour 2",
+    "Herbicide Labour 3",
+    "Harvesting Labour",
+    "Harvesting Labour 2"
+  ];
+
+  const OPERATING_COLUMNS = [
+    "Treatment Input Cost Only /Ha",
+    "Cavalier (Oxyfluofen 240)",
+    "Factor",
+    "Roundup CT",
+    "Roundup Ultra Max",
+    "Supercharge Elite Discontinued",
+    "Platnium (Clethodim 360)",
+    "Mentor",
+    "Simazine 900",
+    "Veritas Opti",
+    "FLUTRIAFOL fungicide",
+    "Barrack fungicide discontinued",
+    "Talstar"
+  ];
+
+  function slugifyTreatmentName(name) {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  }
+
+  function parseNumber(value) {
+    if (value === null || value === undefined || value === "") return NaN;
+    if (typeof value === "number") return value;
+    const cleaned = String(value).replace(/[\$,]/g, "");
+    const n = parseFloat(cleaned);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function computeTreatmentStatsFromRaw(rawRows) {
+    const groups = new Map();
+
+    rawRows.forEach(row => {
+      const treatmentName = String(row.Amendment || "").trim();
+      if (!treatmentName) return;
+
+      let g = groups.get(treatmentName);
+      if (!g) {
+        g = {
+          name: treatmentName,
+          sumYield: 0,
+          nYield: 0,
+          sumLabour: 0,
+          sumOperating: 0
+        };
+        groups.set(treatmentName, g);
+      }
+
+      const y = parseNumber(row["Yield t/ha"]);
+      if (!Number.isNaN(y)) {
+        g.sumYield += y;
+        g.nYield += 1;
+      }
+
+      let labour = 0;
+      LABOUR_COLUMNS.forEach(col => {
+        const v = parseNumber(row[col]);
+        if (!Number.isNaN(v)) labour += v;
+      });
+      g.sumLabour += labour;
+
+      let op = 0;
+      OPERATING_COLUMNS.forEach(col => {
+        const v = parseNumber(row[col]);
+        if (!Number.isNaN(v)) op += v;
+      });
+      g.sumOperating += op;
+    });
+
+    let controlMeanYield = null;
+    for (const [name, g] of groups.entries()) {
+      const label = name.toLowerCase();
+      if (label.includes("control")) {
+        if (g.nYield > 0) {
+          controlMeanYield = g.sumYield / g.nYield;
+        }
+        break;
+      }
+    }
+
+    const treatments = [];
+
+    for (const [name, g] of groups.entries()) {
+      const meanYield = g.nYield > 0 ? g.sumYield / g.nYield : 0;
+      const meanLabour = g.nYield > 0 ? g.sumLabour / g.nYield : 0;
+      const meanOperating = g.nYield > 0 ? g.sumOperating / g.nYield : 0;
+
+      treatments.push({
+        id: slugifyTreatmentName(name),
+        label: name,
+        isControl: name.toLowerCase().includes("control"),
+        meanYieldTHa: meanYield,
+        labourCostPerHa: meanLabour,
+        additionalOperatingCostPerHa: meanOperating,
+        yield_uplift_vs_control_t_ha:
+          controlMeanYield === null ? 0 : meanYield - controlMeanYield
+      });
+    }
+
+    return treatments;
+  }
+
+  function applyTrialTreatmentsIfAvailable() {
+    if (!RAW_PLOTS.length) return;
+    const stats = computeTreatmentStatsFromRaw(RAW_PLOTS);
+    if (!stats.length) return;
+
+    const byId = new Map(stats.map(s => [s.id, s]));
+    const yieldOutput = model.outputs.find(o => o.name.toLowerCase().includes("yield"));
+    const yieldId = yieldOutput ? yieldOutput.id : null;
+
+    const merged = TRIAL_TREATMENT_CONFIG.map(cfg => {
+      const s = byId.get(cfg.id);
+      const costs = Object.assign({}, cfg.costs);
+      const agr = Object.assign({}, cfg.agronomy);
+
+      if (s) {
+        agr.mean_yield_t_ha = s.meanYieldTHa;
+        agr.yield_uplift_vs_control_t_ha = s.yield_uplift_vs_control_t_ha;
+        costs.labourCostPerHa =
+          typeof costs.labourCostPerHa === "number" && !isNaN(costs.labourCostPerHa)
+            ? costs.labourCostPerHa
+            : s.labourCostPerHa;
+        costs.additionalOperatingCostPerHa =
+          typeof costs.additionalOperatingCostPerHa === "number" && !isNaN(costs.additionalOperatingCostPerHa)
+            ? costs.additionalOperatingCostPerHa
+            : s.additionalOperatingCostPerHa;
+      }
+
+      return {
+        id: cfg.id,
+        label: cfg.label,
+        category: cfg.category,
+        controlFlag: !!cfg.controlFlag,
+        agronomy: agr,
+        costs,
+        capitalAssets: cfg.capitalAssets || []
+      };
+    });
+
+    model.treatments = merged.map(tt => {
+      const materialsPerHa = Number(tt.costs.treatmentInputCostPerHa || 0);
+      const labourPerHa = Number(tt.costs.labourCostPerHa || 0);
+      const operatingPerHa = Number(tt.costs.additionalOperatingCostPerHa || 0);
+
+      const t = {
+        id: uid(),
+        name: tt.label,
+        area: 100,
+        adoption: 1,
+        deltas: {},
+        labourCost: labourPerHa,
+        materialsCost: materialsPerHa + operatingPerHa,
+        servicesCost: 0,
+        capitalCost: 0,
+        constrained: true,
+        source: "Farm Trials",
+        isControl: !!tt.controlFlag,
+        notes: tt.agronomy && tt.agronomy.notes ? tt.agronomy.notes : ""
+      };
+
+      model.outputs.forEach(o => {
+        t.deltas[o.id] = 0;
+      });
+      if (yieldId && tt.agronomy && typeof tt.agronomy.yield_uplift_vs_control_t_ha === "number") {
+        t.deltas[yieldId] = tt.agronomy.yield_uplift_vs_control_t_ha;
+      }
+      return t;
+    });
+
+    initTreatmentDeltas();
+    showToast("Trial calibrated treatments loaded from raw plot data.");
   }
 
   // ---------- CASHFLOWS ----------
@@ -941,7 +1413,6 @@
           const obj = JSON.parse(text);
           Object.assign(model, obj);
 
-          // Backward compatibility for treatments after JSON load
           if (Array.isArray(model.treatments)) {
             model.treatments.forEach(t => {
               if (typeof t.labourCost === "undefined") {
@@ -1469,13 +1940,9 @@
           <div class="field"><label>Declining rate (% per year)</label><input type="number" step="1" value="${c.depRate || 30}" data-ck="depRate" data-id="${c.id}" /></div>
           `
               : `
-          <div class="field"><label>Depreciation method</label>
-            <select data-ck="depMethod" data-id="${c.id}">
-              <option value="none" selected>None</option>
-            </select>
-          </div>
-          <div class="field"><label>Life (years)</label><input type="number" step="1" min="1" value="${c.depLife || 5}" data-ck="depLife" data-id="${c.id}" disabled /></div>
-          <div class="field"><label>Declining rate (% per year)</label><input type="number" step="1" value="${c.depRate || 30}" data-ck="depRate" data-id="${c.id}" disabled /></div>
+          <div class="field" style="display:none"></div>
+          <div class="field" style="display:none"></div>
+          <div class="field" style="display:none"></div>
           `
           }
           <div class="field"><label>Constrained?</label>
@@ -2509,7 +2976,6 @@
     const data = parsedExcel;
     const now = new Date().getFullYear();
 
-    // Meta (optional)
     if (data.meta && data.meta.length) {
       const mrow = data.meta[0];
       if (mrow.ProjectName) model.project.name = mrow.ProjectName;
@@ -2523,7 +2989,6 @@
       model.project.lastUpdated = new Date().toISOString().slice(0, 10);
     }
 
-    // Outputs
     if (data.outputs && data.outputs.length) {
       model.outputs = data.outputs.map(row => ({
         id: uid(),
@@ -2535,7 +3000,6 @@
       }));
     }
 
-    // Treatments
     const outputNameToId = {};
     model.outputs.forEach(o => {
       outputNameToId[o.name.toLowerCase()] = o.id;
@@ -2589,7 +3053,6 @@
       initTreatmentDeltas();
     }
 
-    // Benefits
     if (data.benefits && data.benefits.length) {
       model.benefits = data.benefits.map(row => ({
         id: uid(),
@@ -2618,7 +3081,6 @@
       }));
     }
 
-    // Costs
     if (data.costs && data.costs.length) {
       model.otherCosts = data.costs.map(row => ({
         id: uid(),
@@ -2809,7 +3271,11 @@
     if (!ensureXlsxAvailable()) return;
     const wb = buildTemplateWorkbook(false);
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    downloadBinaryFile("farming_cba_template.xlsx", wbout, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    downloadBinaryFile(
+      "farming_cba_template.xlsx",
+      wbout,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
     showToast("Excel template downloaded. Use this structure for imports.");
   }
 
@@ -2850,14 +3316,12 @@
   }
 
   function buildScenarioForCopilot() {
-    const summary = buildSummaryForCsv();
-    const base = summary.results;
-
     const rate = model.time.discBase;
     const adoptMul = model.adoption.base;
     const risk = model.risk.base;
+    const all = computeAll(rate, adoptMul, risk, model.sim.bcrMode);
 
-    const treatmentSummaries = model.treatments.slice(0, 10).map(t => {
+    const treatmentSummaries = model.treatments.map(t => {
       const m = computeSingleTreatmentMetrics(
         t,
         rate,
@@ -2867,14 +3331,14 @@
       );
       return {
         name: t.name,
-        areaHa: t.area,
-        adoptionMultiplier: model.adoption.base,
+        areaHa: Number(t.area) || 0,
+        adoptionMultiplier: adoptMul,
         isControl: !!t.isControl,
         pvBenefits: m.pvBen,
         pvCosts: m.pvCost,
         npv: m.npv,
         bcr: m.bcr,
-        irr: m.irrVal,
+        irrPercent: m.irrVal,
         paybackYears: m.pb
       };
     });
@@ -2889,7 +3353,7 @@
       const medianNpv =
         (sortedNpv[Math.floor((N - 1) / 2)] + sortedNpv[Math.ceil((N - 1) / 2)]) / 2;
       const npvMin = sortedNpv[0];
-      const npvMax = sortedNpv[sortedNpv.length - 1];
+      const npvMax = sortedNpv[N - 1];
       const probPosNpv = npvArr.filter(v => v > 0).length / N;
 
       const validBcr = bcrArr.filter(x => isFinite(x));
@@ -2913,96 +3377,106 @@
 
       simSummary = {
         runs: N,
-        discountLow: model.time.discLow,
-        discountBase: model.time.discBase,
-        discountHigh: model.time.discHigh,
-        adoptionLow: model.adoption.low,
-        adoptionBase: model.adoption.base,
-        adoptionHigh: model.adoption.high,
-        riskLow: model.risk.low,
-        riskBase: model.risk.base,
-        riskHigh: model.risk.high,
-        npvMin,
-        npvMax,
-        npvMean: meanNpv,
-        npvMedian: medianNpv,
-        probNpvPositive: probPosNpv,
-        bcrMin,
-        bcrMax,
-        bcrMean,
-        bcrMedian,
-        probBcrAbove1,
-        probBcrAboveTarget: probBcrAboveTarget,
-        targetBCR: model.sim.targetBCR
+        npv: {
+          min: npvMin,
+          max: npvMax,
+          mean: meanNpv,
+          median: medianNpv,
+          probPositive: probPosNpv
+        },
+        bcr: validBcr.length
+          ? {
+              min: bcrMin,
+              max: bcrMax,
+              mean: bcrMean,
+              median: bcrMedian,
+              probAbove1: probBcrAbove1,
+              probAboveTarget: probBcrAboveTarget,
+              target: model.sim.targetBCR
+            }
+          : null
       };
     }
 
-    return {
-      project: summary.meta,
-      parameters: summary.params,
-      baseCase: {
-        pvBenefits: base.pvBenefits,
-        pvCosts: base.pvCosts,
-        npv: base.npv,
-        bcr: base.bcr,
-        irr: base.irrVal,
-        mirr: base.mirrVal,
-        roi: base.roi,
-        annualGrossMargin: base.annualGM,
-        profitMargin: base.profitMargin,
-        paybackYears: base.paybackYears
+    const scenario = {
+      meta: {
+        projectName: model.project.name,
+        lead: model.project.lead,
+        analysts: model.project.analysts,
+        organisation: model.project.organisation,
+        contactEmail: model.project.contactEmail,
+        lastUpdated: model.project.lastUpdated
       },
-      treatmentSummaries,
-      simulationSummary: simSummary
+      narrative: {
+        goal: model.project.goal,
+        withProject: model.project.withProject,
+        withoutProject: model.project.withoutProject,
+        summary: model.project.summary
+      },
+      time: {
+        analysisStartYear: model.time.startYear,
+        projectStartYear: model.time.projectStartYear,
+        years: model.time.years,
+        discountRateBase: model.time.discBase,
+        discountRateLow: model.time.discLow,
+        discountRateHigh: model.time.discHigh
+      },
+      baseCase: {
+        pvBenefits: all.pvBenefits,
+        pvCosts: all.pvCosts,
+        npv: all.npv,
+        bcr: all.bcr,
+        irrPercent: all.irrVal,
+        mirrPercent: all.mirrVal,
+        roiPercent: all.roi,
+        annualGrossMargin: all.annualGM,
+        profitMarginPercent: all.profitMargin,
+        paybackYears: all.paybackYears
+      },
+      treatments: treatmentSummaries,
+      simulation: simSummary,
+      adoption: {
+        base: model.adoption.base,
+        low: model.adoption.low,
+        high: model.adoption.high
+      },
+      risk: {
+        base: model.risk.base,
+        low: model.risk.low,
+        high: model.risk.high
+      }
     };
+
+    return scenario;
   }
 
-  function handleOpenCopilotClick() {
-    calcAndRender();
-    const scenario = buildScenarioForCopilot();
-    let scenarioJson = JSON.stringify(scenario, null, 2);
-    const maxJsonChars = 5000;
-    if (scenarioJson.length > maxJsonChars) {
-      scenarioJson = scenarioJson.slice(0, maxJsonChars) + "\n... (scenario truncated to fit character limits)";
-    }
-
-    const promptText =
-`You are an agricultural economics assistant helping to interpret a cost benefit analysis for a farming project.
-
-Using the JSON scenario below, write a clear and accessible policy briefing for decision makers in agriculture and natural resource management in Australia. Structure the briefing in well separated sections with short headings, such as: Project context, Methods and assumptions, Base case economic results, Risk and uncertainty, Adoption and implementation issues, and Policy conclusions.
-
-Explain in plain language what the project does, why it matters, and how the cost benefit analysis was carried out. Describe the main economic indicators including present value of benefits and costs, net present value, benefit cost ratio, internal rate of return, modified internal rate of return, return on investment, annual gross margin, profit margin, and payback period. Interpret the results for each indicator in words that a nontechnical reader can understand.
-
-If simulation results are available, summarise what they show about the probability that net present value is positive, the probability that the benefit cost ratio is above 1, and the probability that it is above the target threshold. Explain what these probabilities mean in practical terms.
-
-Discuss how adoption, risk, and implementation constraints could influence the results, and outline any important distributional or implementation considerations that policy makers should be aware of.
-
-Conclude with a clear recommendation on whether the project appears economically attractive, under what conditions it is most attractive, and what further evidence or monitoring might be useful.
-
-Write only in paragraphs with no bullet points or numbered lists. Use professional but lay friendly language. Aim for the level of detail that would correspond to roughly three to five pages of text. You may include self contained tables if they help to present the main numbers clearly.
-
-SCENARIO JSON:
-\`\`\`json
-${scenarioJson}
-\`\`\`
-`;
-
-    copyToClipboard(promptText).then(ok => {
+  async function handleOpenCopilotClick() {
+    try {
+      const scenario = buildScenarioForCopilot();
+      const text = JSON.stringify(scenario, null, 2);
+      const ok = await copyToClipboard(text);
       if (ok) {
-        showToast("Copilot briefing prompt copied. A new Copilot tab will open.");
+        showToast("Scenario JSON copied. Paste into Copilot and ask for a 3 to 5 page policy brief.");
       } else {
-        showToast("Could not copy automatically. Use the Copilot tab to copy the text manually.");
+        showToast("Could not copy automatically. Scroll down, copy the JSON manually, then paste into Copilot.");
       }
-      window.open("https://copilot.microsoft.com/", "_blank");
-    });
+      const out = $("#copilotJson");
+      if (out) {
+        out.value = text;
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Could not prepare Copilot scenario. Check console for details.");
+    }
   }
 
   // ---------- INIT ----------
-  document.addEventListener("DOMContentLoaded", () => {
-    initTabs();
+  window.addEventListener("DOMContentLoaded", () => {
+    applyTrialTreatmentsIfAvailable();
+    renderAll();
     bindBasics();
     initAddButtons();
-    renderAll();
+    initTabs();
     calcAndRender();
   });
 })();
