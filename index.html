@@ -27,18 +27,18 @@
 
   <main class="app-shell">
     <nav id="tabs" class="tabs">
-      <button data-tab="cover" class="active">Overview</button>
-      <button data-tab="project">Project</button>
-      <button data-tab="time">Time and Discounting</button>
-      <button data-tab="outputs">Outputs</button>
-      <button data-tab="treatments">Treatments</button>
-      <button data-tab="benefits">Benefits</button>
-      <button data-tab="costs">Costs</button>
-      <button data-tab="database">Database and import</button>
-      <button data-tab="sim">Simulation</button>
-      <button data-tab="report">Results</button>
-      <button data-tab="distribution">Uncertainty</button>
-      <button data-tab="video">Video guide</button>
+      <button type="button" data-tab="cover" class="active">Overview</button>
+      <button type="button" data-tab="project">Project</button>
+      <button type="button" data-tab="time">Time and Discounting</button>
+      <button type="button" data-tab="outputs">Outputs</button>
+      <button type="button" data-tab="treatments">Treatments</button>
+      <button type="button" data-tab="benefits">Benefits</button>
+      <button type="button" data-tab="costs">Costs</button>
+      <button type="button" data-tab="database">Database and import</button>
+      <button type="button" data-tab="sim">Simulation</button>
+      <button type="button" data-tab="report">Results</button>
+      <button type="button" data-tab="distribution">Uncertainty</button>
+      <button type="button" data-tab="video">Video guide</button>
     </nav>
 
 <!-- COVER / OVERVIEW -->
@@ -831,12 +831,21 @@
   </main>
 
   <div id="toast-root"></div>
+  <textarea id="copilotPayload" class="visually-hidden" aria-hidden="true"></textarea>
 
   <footer class="app-footer">
     <span class="muted small">
       Farming CBA Decision Aid - Newcastle Business School
     </span>
   </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js"></script>
 
   <script src="app.js"></script>
 
