@@ -63,7 +63,7 @@
     <div class="hero-side">
       <h3>Key features</h3>
       <ul>
-        <li>Up to 64 treatments with explicit control group</li>
+        <li>Up to 64 treatments with an explicit control versus treatment flag</li>
         <li>Direct and indirect benefit modules</li>
         <li>Flexible time horizon and discount schedule</li>
         <li>Monte Carlo uncertainty analysis</li>
@@ -288,12 +288,11 @@
     </div>
 
     <p class="small muted">
-      Define the interventions being tested, including area, per hectare labour cost,
-      capital items at year zero, and control versus treatment status. Adoption
-      assumptions are managed in the Simulation tab as part of the sensitivity
-      analysis so that changes in uptake can be explored without editing treatment
-      definitions. Values entered here feed dynamically into the Results and
-      Simulation tabs.
+      Define the interventions being tested, including area, per hectare labour and
+      other variable costs, capital items at year zero, and control versus treatment
+      status. Adoption assumptions are managed in the Simulation tab as part of the
+      sensitivity analysis so that changes in uptake can be explored without editing
+      treatment definitions.
     </p>
 
     <div id="treatmentsList" class="item-list"></div>
@@ -330,9 +329,9 @@
     <p class="small muted">
       These are production related costs linked to the project. Costs that relate only
       to soil amendments or trial infrastructure can be entered as capital costs if
-      relevant for the CBA. Depreciation settings are shown only for capital items,
-      while labour and other categories are treated without additional depreciation
-      rows.
+      relevant for the CBA. Depreciation schedules are applied only to items tagged
+      as capital, while labour, materials and services are treated as operating
+      expenses without separate depreciation rows.
     </p>
     <div id="costsList" class="item-list"></div>
   </section>
@@ -451,7 +450,8 @@
     <h3>Adoption rate sensitivity analysis</h3>
     <p class="small muted">
       Use these adoption multipliers to explore low, base and high uptake scenarios.
-      They scale treatment level benefits relative to the baseline treatment settings.
+      They scale treatment level benefits relative to the baseline treatment settings
+      so that adoption effects are handled consistently in one place.
     </p>
     <div class="grid-3">
       <div class="field">
@@ -757,13 +757,13 @@
     </p>
     <p>
       In the Treatments tab you define the interventions being tested. For each
-      treatment you can specify the area in hectares, per hectare labour cost,
-      any capital costs at year zero, and whether the treatment is constrained for
-      the benefit cost ratio denominator. Output deltas per hectare are recorded
-      in a grid under each treatment. Control versus treatment status is flagged
-      at this level for comparative reporting, while adoption assumptions are
-      configured in the Simulation tab as part of the sensitivity analysis. Values
-      entered here update the Results and Simulation tabs dynamically.
+      treatment you can specify the area in hectares, per hectare labour and other
+      variable costs for materials and services, any capital costs at year zero, and
+      whether the treatment is tagged as control or treatment for reporting
+      purposes. Output deltas per hectare are recorded in a grid under each
+      treatment. Control versus treatment status is flagged at this level for
+      comparative reporting, while adoption assumptions are configured in the
+      Simulation tab as part of the sensitivity analysis.
     </p>
     <p>
       The Benefits tab lets you add indirect or non yield benefits, such as
@@ -779,8 +779,8 @@
       ongoing or capital costs and can be assigned to categories such as labour,
       materials, services or capital. For capital items you can choose a depreciation
       method and life, and the Depreciation summary panel will show indicative
-      schedules. For non capital categories there are no additional depreciation
-      rows and annual values are used directly in the cash flow calculations.
+      schedules. Non capital categories are treated as operating expenses without
+      separate depreciation rows.
     </p>
     <p>
       The Database and import tab provides two functions. First, it allows you to
@@ -798,7 +798,8 @@
       target benefit cost ratio threshold, a random seed and the range of shocks
       applied to output prices and costs. Adoption multipliers for low, base and
       high uptake scenarios are entered here so that you can see how changes in
-      adoption rates affect net present value and benefit cost ratio.
+      adoption rates affect net present value and benefit cost ratio without editing
+      treatment definitions.
     </p>
     <p>
       The Results tab presents the base case economic indicators, including present
