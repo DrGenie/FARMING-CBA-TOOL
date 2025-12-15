@@ -228,8 +228,8 @@
         ? n.toLocaleString(undefined, { maximumFractionDigits: 0 })
         : n.toLocaleString(undefined, { maximumFractionDigits: 2 })
       : "n/a";
-  const money = n => (isFinite(n) ? "$" + fmt(n) : "n/a";
-  const percent = n => (isFinite(n) ? fmt(n) + "%" : "n/a";
+  const money = n => (isFinite(n) ? "$" + fmt(n) : "n/a");
+  const percent = n => (isFinite(n) ? fmt(n) + "%" : "n/a");
   const slug = s =>
     (s || "project")
       .toLowerCase()
@@ -558,18 +558,7 @@
   const FABABEAN_SHEET_NAMES = ["FabaBeanRaw", "FabaBeansRaw", "FabaBean", "FabaBeans"];
 
   // Raw plot data container for trial calibration.
-  // Paste your actual faba bean plot rows here (objects keyed by column headings),
-  // or supply them via an Excel sheet named in FABABEAN_SHEET_NAMES.
-  const RAW_PLOTS = [
-    // Example structure (replace with real rows):
-    // {
-    //   Amendment: "Control",
-    //   "Yield t/ha": 2.4,
-    //   "Pre sowing Labour": 15,
-    //   "Amendment Labour": 0,
-    //   ...
-    // }
-  ];
+  const RAW_PLOTS = [];
 
   const LABOUR_COLUMNS = [
     "Pre sowing Labour",
@@ -2342,7 +2331,7 @@
 
   function calcAndRender() {
     const rate = model.time.discBase;
-       const adoptMul = model.adoption.base;
+    const adoptMul = model.adoption.base;
     const risk = model.risk.base;
 
     const all = computeAll(rate, adoptMul, risk, model.sim.bcrMode);
@@ -2960,7 +2949,6 @@
           res.benefits = getSheet("Benefits");
           res.costs = getSheet("Costs");
 
-          // Look for faba bean raw plot data in any of the known sheet names
           let fabaRaw = [];
           for (const nm of FABABEAN_SHEET_NAMES) {
             const rows = getSheet(nm);
@@ -3125,7 +3113,6 @@
       }));
     }
 
-    // If faba bean raw plot data were provided in the Excel file, overwrite RAW_PLOTS and apply calibration.
     if (data.fabaRaw && data.fabaRaw.length) {
       RAW_PLOTS.length = 0;
       data.fabaRaw.forEach(row => RAW_PLOTS.push(row));
@@ -3296,7 +3283,6 @@
     }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(costAoA), "Costs");
 
-    // Optional: add an empty sheet for faba bean raw plots to signal structure
     const fabaHeader = [
       "Amendment",
       "Yield t/ha",
@@ -3450,43 +3436,44 @@
         lastUpdated: model.project.lastUpdated
       },
       narrative: {
+        summary: model.project.summary,
         goal: model.project.goal,
         withProject: model.project.withProject,
         withoutProject: model.project.withoutProject,
-        summary: model.project.summary
+        stakeholders: model.project.stakeholders
       },
-      time: {
-        analysisStartYear: model.time.startYear,
+      configuration: {
+        startYear: model.time.startYear,
         projectStartYear: model.time.projectStartYear,
         years: model.time.years,
-        discountRateBase: model.time.discBase,
-        discountRateLow: model.time.discLow,
-        discountRateHigh: model.time.discHigh
+        discountBasePercent: model.time.discBase,
+        discountLowPercent: model.time.discLow,
+        discountHighPercent: model.time.discHigh,
+        mirrFinancePercent: model.time.mirrFinance,
+        mirrReinvestPercent: model.time.mirrReinvest,
+        adoptionMultiplierBase: model.adoption.base,
+        adoptionMultiplierLow: model.adoption.low,
+        adoptionMultiplierHigh: model.adoption.high,
+        riskBase: model.risk.base,
+        riskLow: model.risk.low,
+        riskHigh: model.risk.high,
+        bcrMode: model.sim.bcrMode
       },
-      baseCase: {
-        pvBenefits: all.pvBenefits,
-        pvCosts: all.pvCosts,
+      cba: {
+        presentValueBenefits: all.pvBenefits,
+        presentValueCosts: all.pvCosts,
+        presentValueCostsConstrained: all.pvCostsConstrained,
         npv: all.npv,
         bcr: all.bcr,
         irrPercent: all.irrVal,
         mirrPercent: all.mirrVal,
         roiPercent: all.roi,
         annualGrossMargin: all.annualGM,
-        profitMarginPercent: all.profitMargin,
+        grossProfitMarginPercent: all.profitMargin,
         paybackYears: all.paybackYears
       },
       treatments: treatmentSummaries,
-      simulation: simSummary,
-      adoption: {
-        base: model.adoption.base,
-        low: model.adoption.low,
-        high: model.adoption.high
-      },
-      risk: {
-        base: model.risk.base,
-        low: model.risk.low,
-        high: model.risk.high
-      }
+      simulation: simSummary
     };
 
     return scenario;
@@ -3494,42 +3481,52 @@
 
   async function handleOpenCopilotClick() {
     try {
-      const scenario = buildScenarioForCopilot();
-      const text = JSON.stringify(scenario, null, 2);
-      const ok = await copyToClipboard(text);
-      if (ok) {
-        showToast("Scenario JSON copied. Paste into Copilot and ask for a 3 to 5 page policy brief.");
-      } else {
-        showToast("Could not copy automatically. Scroll down, copy the JSON manually, then paste into Copilot.");
-      }
-      const out = $("#copilotJson");
-      if (out) {
-        out.value = text;
-        out.scrollTop = 0;
-      }
-      const link = document.getElementById("copilotLink");
-      if (link && !link.href) {
-        link.href = "https://copilot.microsoft.com/";
-        link.target = "_blank";
-        link.rel = "noopener";
-      }
-    } catch (err) {
-      console.error(err);
-      showToast("Could not prepare Copilot JSON. Please check the console.");
+      calcAndRender();
+    } catch (_) {}
+
+    const scenario = buildScenarioForCopilot();
+    const jsonText = JSON.stringify(scenario, null, 2);
+
+    const prompt =
+      "You are preparing a clear business case summary for a farming investment project. " +
+      "Use the JSON scenario below, which was produced by a farming cost benefit analysis tool, as your main data source. " +
+      "Write a structured briefing for government and industry decision makers in plain language. " +
+      "Explain the project context, objectives, and what changes with the project compared with business as usual. " +
+      "Summarise the key economic indicators (NPV, BCR, IRR, payback period, gross margin) and state clearly whether the project appears economically worthwhile. " +
+      "Describe the performance of individual treatments, highlighting which options look most attractive and why. " +
+      "If simulation results are available, explain what they imply about risk and uncertainty, including the chance that NPV is positive and that the BCR exceeds the target value. " +
+      "Conclude with a balanced recommendation that notes key assumptions, limitations, and practical considerations for implementation.\n\n" +
+      "JSON scenario:\n" +
+      jsonText;
+
+    const ok = await copyToClipboard(prompt);
+    if (ok) {
+      showToast("Copilot prompt copied. Paste it into Copilot to generate a briefing.");
+    } else {
+      showToast("Could not copy prompt automatically. Use the text area in the Copilot tab.");
     }
+
+    const jsonOut = document.getElementById("copilotJson");
+    if (jsonOut) {
+      jsonOut.value = jsonText;
+    }
+    const promptOut = document.getElementById("copilotPromptText");
+    if (promptOut) {
+      promptOut.value = prompt;
+    }
+
+    try {
+      window.open("https://copilot.microsoft.com/", "_blank");
+    } catch (_) {}
   }
 
-  // ---------- INITIALISATION ----------
-  function init() {
-    // If RAW_PLOTS already holds embedded faba bean data, apply trial calibration on load.
+  // ---------- INIT ----------
+  document.addEventListener("DOMContentLoaded", () => {
     applyTrialTreatmentsIfAvailable();
-    bindBasics();
     initTabs();
+    bindBasics();
     initAddButtons();
     renderAll();
-    setBasicsFieldsFromModel();
     calcAndRender();
-  }
-
-  document.addEventListener("DOMContentLoaded", init);
+  });
 })();
