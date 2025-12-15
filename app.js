@@ -114,7 +114,7 @@
         linkRisk: true,
         p0: 0,
         p1: 0,
-        consequence: 0,
+        consequence: 120000,
         notes: "Project wide operating cost saving"
       },
       {
@@ -228,8 +228,8 @@
         ? n.toLocaleString(undefined, { maximumFractionDigits: 0 })
         : n.toLocaleString(undefined, { maximumFractionDigits: 2 })
       : "n/a";
-  const money = n => (isFinite(n) ? "$" + fmt(n) : "n/a");
-  const percent = n => (isFinite(n) ? fmt(n) + "%" : "n/a");
+  const money = n => (isFinite(n) ? "$" + fmt(n) : "n/a";
+  const percent = n => (isFinite(n) ? fmt(n) + "%" : "n/a";
   const slug = s =>
     (s || "project")
       .toLowerCase()
@@ -554,9 +554,21 @@
     }
   ];
 
+  // Sheet names to look for when importing the faba bean raw plot data.
+  const FABABEAN_SHEET_NAMES = ["FabaBeanRaw", "FabaBeansRaw", "FabaBean", "FabaBeans"];
+
   // Raw plot data container for trial calibration.
+  // Paste your actual faba bean plot rows here (objects keyed by column headings),
+  // or supply them via an Excel sheet named in FABABEAN_SHEET_NAMES.
   const RAW_PLOTS = [
-    // Paste each plot row here as an object if you want automatic aggregation.
+    // Example structure (replace with real rows):
+    // {
+    //   Amendment: "Control",
+    //   "Yield t/ha": 2.4,
+    //   "Pre sowing Labour": 15,
+    //   "Amendment Labour": 0,
+    //   ...
+    // }
   ];
 
   const LABOUR_COLUMNS = [
@@ -743,7 +755,7 @@
     });
 
     initTreatmentDeltas();
-    showToast("Trial calibrated treatments loaded from raw plot data.");
+    showToast("Trial calibrated treatments loaded from faba bean raw plot data.");
   }
 
   // ---------- CASHFLOWS ----------
@@ -2330,7 +2342,7 @@
 
   function calcAndRender() {
     const rate = model.time.discBase;
-    const adoptMul = model.adoption.base;
+       const adoptMul = model.adoption.base;
     const risk = model.risk.base;
 
     const all = computeAll(rate, adoptMul, risk, model.sim.bcrMode);
@@ -2948,13 +2960,25 @@
           res.benefits = getSheet("Benefits");
           res.costs = getSheet("Costs");
 
+          // Look for faba bean raw plot data in any of the known sheet names
+          let fabaRaw = [];
+          for (const nm of FABABEAN_SHEET_NAMES) {
+            const rows = getSheet(nm);
+            if (rows && rows.length) {
+              fabaRaw = rows;
+              break;
+            }
+          }
+          res.fabaRaw = fabaRaw;
+
           parsedExcel = res;
           const nOut = res.outputs.length || 0;
           const nTreat = res.treatments.length || 0;
           const nBen = res.benefits.length || 0;
           const nCost = res.costs.length || 0;
+          const nFaba = res.fabaRaw ? res.fabaRaw.length : 0;
           showToast(
-            `Excel parsed successfully: ${nOut} outputs, ${nTreat} treatments, ${nBen} benefits, ${nCost} cost items ready to import.`
+            `Excel parsed: ${nOut} outputs, ${nTreat} treatments, ${nBen} benefits, ${nCost} costs, ${nFaba} faba bean raw rows.`
           );
         } catch (err) {
           console.error(err);
@@ -3101,7 +3125,15 @@
       }));
     }
 
-    initTreatmentDeltas();
+    // If faba bean raw plot data were provided in the Excel file, overwrite RAW_PLOTS and apply calibration.
+    if (data.fabaRaw && data.fabaRaw.length) {
+      RAW_PLOTS.length = 0;
+      data.fabaRaw.forEach(row => RAW_PLOTS.push(row));
+      applyTrialTreatmentsIfAvailable();
+    } else {
+      initTreatmentDeltas();
+    }
+
     renderAll();
     setBasicsFieldsFromModel();
     calcAndRender();
@@ -3264,6 +3296,16 @@
     }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(costAoA), "Costs");
 
+    // Optional: add an empty sheet for faba bean raw plots to signal structure
+    const fabaHeader = [
+      "Amendment",
+      "Yield t/ha",
+      ...LABOUR_COLUMNS,
+      ...OPERATING_COLUMNS
+    ];
+    const fabaAoA = [fabaHeader];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(fabaAoA), "FabaBeanRaw");
+
     return wb;
   }
 
@@ -3288,7 +3330,7 @@
       wbout,
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
-    showToast("Sample Excel dataset downloaded using a realistic Australian nitrogen trial scenario.");
+    showToast("Sample Excel dataset downloaded using the current scenario. Add faba bean raw data to the FabaBeanRaw sheet if needed.");
   }
 
   // ---------- COPILOT HELPER ----------
@@ -3463,20 +3505,31 @@
       const out = $("#copilotJson");
       if (out) {
         out.value = text;
+        out.scrollTop = 0;
+      }
+      const link = document.getElementById("copilotLink");
+      if (link && !link.href) {
+        link.href = "https://copilot.microsoft.com/";
+        link.target = "_blank";
+        link.rel = "noopener";
       }
     } catch (err) {
       console.error(err);
-      showToast("Could not prepare Copilot scenario. Check console for details.");
+      showToast("Could not prepare Copilot JSON. Please check the console.");
     }
   }
 
-  // ---------- INIT ----------
-  window.addEventListener("DOMContentLoaded", () => {
+  // ---------- INITIALISATION ----------
+  function init() {
+    // If RAW_PLOTS already holds embedded faba bean data, apply trial calibration on load.
     applyTrialTreatmentsIfAvailable();
-    renderAll();
     bindBasics();
-    initAddButtons();
     initTabs();
+    initAddButtons();
+    renderAll();
+    setBasicsFieldsFromModel();
     calcAndRender();
-  });
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
 })();
