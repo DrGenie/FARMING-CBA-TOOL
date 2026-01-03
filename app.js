@@ -1,15 +1,20 @@
-// script.js – Farming CBA Decision Tool 2 ( analysis, scenarios, CSV import)
+// script.js – Farming CBA Decision Tool 2
+// Control-centric results, Excel-first workflow, AI prompt builder
+
 document.addEventListener('DOMContentLoaded', function () {
   'use strict';
 
-  // --------- STATE ---------
+  const TOOL_NAME = 'Farming CBA Decision Tool 2';
+
+  // ---------- STATE ----------
   let treatments = [];
   let nextId = 1;
   let currentScenario = 'base';
 
-  // --------- BASIC HELPERS ---------
+  // ---------- BASIC HELPERS ----------
   function toNumber(value) {
     if (typeof value === 'number') return value;
+    if (value === null || value === undefined) return 0;
     const v = parseFloat(String(value).replace(/,/g, '').trim());
     return isNaN(v) ? 0 : v;
   }
@@ -25,96 +30,128 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function getDiscountRate() {
     const el = document.getElementById('discount-rate');
-    if (!el) return null;
+    if (!el) return 0.0;
     const v = parseFloat(el.value);
-    return isNaN(v) ? null : v;
+    return isNaN(v) ? 0.0 : v / 100.0;
   }
 
   function getAnalysisYears() {
     const el = document.getElementById('analysis-years');
-    if (!el) return null;
-    const v = parseFloat(el.value);
-    return isNaN(v) ? null : v;
+    if (!el) return 0;
+    const v = parseInt(el.value, 10);
+    return isNaN(v) || v <= 0 ? 0 : v;
   }
 
   function getCurrencyLabel() {
     const el = document.getElementById('currency-label');
-    if (!el) return '';
-    return el.value || '';
+    if (!el) return '$';
+    return el.value || '$';
   }
 
-  // --------- SCENARIO HANDLING ---------
-  function getScenarioLabel(key) {
-    switch (key) {
-      case 'lowPrice':
-        return 'Lower commodity prices (−20% benefits)';
-      case 'highCost':
-        return 'Higher costs (+20% costs)';
-      case 'optimistic':
-        return 'Optimistic (benefits +20%, costs −10%)';
-      case 'base':
-      default:
-        return 'Base case (as entered)';
+  function pvFactor(rate, years) {
+    // Sum_{t=1..years} [1 / (1+r)^t]
+    if (years <= 0) return 0;
+    if (rate <= -0.99) return years; // avoid division by zero
+    let factor = 0;
+    for (let t = 1; t <= years; t++) {
+      factor += 1 / Math.pow(1 + rate, t);
     }
+    return factor;
   }
 
-  function adjustForScenario(pvBenefits, pvCosts) {
-    let b = pvBenefits;
-    let c = pvCosts;
+  // ---------- SCENARIO ADJUSTMENT ----------
+  function getScenarioAdjustedParams(t) {
+    let price = toNumber(t.pricePerTonne);
+    let annualCost = toNumber(t.annualCostPerHa);
 
     switch (currentScenario) {
       case 'lowPrice':
-        b = b * 0.8;
+        price *= 0.8;
         break;
       case 'highCost':
-        c = c * 1.2;
+        annualCost *= 1.2;
         break;
       case 'optimistic':
-        b = b * 1.2;
-        c = c * 0.9;
+        price *= 1.2;
+        annualCost *= 0.9;
         break;
       case 'base':
       default:
         break;
     }
-    return { pvB: b, pvC: c };
+    return { price, annualCost };
   }
 
-  function calculateBaseMetrics(row) {
-    const pvB = toNumber(row.pvBenefits);
-    const pvC = toNumber(row.pvCosts);
-    const npv = pvB - pvC;
-    const bcr = pvC > 0 ? pvB / pvC : null;
-    const roi = pvC > 0 ? npv / pvC : null;
-    return { npv, bcr, roi };
+  function getScenarioLabel(key) {
+    switch (key) {
+      case 'lowPrice':
+        return 'Lower commodity prices (−20% price)';
+      case 'highCost':
+        return 'Higher costs (+20% annual costs)';
+      case 'optimistic':
+        return 'Optimistic scenario (+20% price, −10% annual costs)';
+      case 'base':
+      default:
+        return 'Base case (values as entered)';
+    }
+  }
+
+  // ---------- METRICS ----------
+  function computeMetricsForTreatment(t) {
+    const r = getDiscountRate();
+    const years = getAnalysisYears();
+    const pf = pvFactor(r, years);
+
+    const areaHa = Math.max(toNumber(t.areaHa), 0);
+    const { price, annualCost } = getScenarioAdjustedParams(t);
+
+    const yieldPerHa = toNumber(t.yieldPerHa);
+    const otherBenefitsPerHa = toNumber(t.otherAnnualBenefitsPerHa);
+    const capitalCost = Math.max(toNumber(t.capitalCost), 0);
+
+    const annualBenefitsPerHa = (yieldPerHa * price) + otherBenefitsPerHa;
+    const pvBenefits = areaHa > 0 ? annualBenefitsPerHa * areaHa * pf : 0;
+    const pvOperatingCosts = areaHa > 0 ? annualCost * areaHa * pf : 0;
+    const pvCosts = capitalCost + pvOperatingCosts;
+
+    const npv = pvBenefits - pvCosts;
+    const bcr = pvCosts > 0 ? (pvBenefits / pvCosts) : null;
+    const roi = pvCosts > 0 ? (npv / pvCosts) : null;
+
+    return {
+      pvBenefits,
+      pvCosts,
+      npv,
+      bcr,
+      roi
+    };
   }
 
   function recalcAllBaseMetrics() {
     treatments.forEach(function (t) {
-      const m = calculateBaseMetrics(t);
-      t.npv = m.npv;
-      t.bcr = m.bcr;
-      t.roi = m.roi;
+      const m = computeMetricsForTreatment(t);
+      t._metrics = m; // base scenario metrics can be overwritten when rendering
     });
   }
 
-  function getScenarioMetrics(t) {
-    const adj = adjustForScenario(toNumber(t.pvBenefits), toNumber(t.pvCosts));
-    const npv = adj.pvB - adj.pvC;
-    const bcr = adj.pvC > 0 ? adj.pvB / adj.pvC : null;
-    const roi = adj.pvC > 0 ? npv / adj.pvC : null;
-    return {
-      pvBenefits: adj.pvB,
-      pvCosts: adj.pvC,
-      npv: npv,
-      bcr: bcr,
-      roi: roi
-    };
+  // ---------- BASELINE / CONTROL ----------
+  function findControlIndex(arr) {
+    if (!arr.length) return -1;
+    const idxFlag = arr.findIndex(function (t) {
+      return !!t.isControl;
+    });
+    if (idxFlag >= 0) return idxFlag;
+    const idxName = arr.findIndex(function (t) {
+      const nm = (t.name || '').toLowerCase();
+      return nm.includes('control') || nm.includes('current');
+    });
+    if (idxName >= 0) return idxName;
+    return 0;
   }
 
-  // --------- SYNC INPUTS <-> STATE ---------
-  function syncFromInputs() {
-    const tbody = document.querySelector('#inputs-tbody');
+  // ---------- SYNC UI <-> STATE ----------
+  function syncFromTreatmentsTable() {
+    const tbody = document.getElementById('treatments-tbody');
     if (!tbody) return;
 
     treatments = [];
@@ -125,34 +162,39 @@ document.addEventListener('DOMContentLoaded', function () {
       const idAttr = tr.getAttribute('data-id');
       const id = idAttr ? parseInt(idAttr, 10) : nextId;
 
-      const nameInput = tr.querySelector('.treatment-name');
-      const pvBInput = tr.querySelector('.pv-benefits');
-      const pvCInput = tr.querySelector('.pv-costs');
-      const notesInput = tr.querySelector('.treatment-notes');
+      const nameInput = tr.querySelector('.t-name');
+      const isControlInput = tr.querySelector('.t-is-control');
+      const areaInput = tr.querySelector('.t-area');
+      const capitalInput = tr.querySelector('.t-capital');
+      const annualCostInput = tr.querySelector('.t-annual-cost');
+      const yieldInput = tr.querySelector('.t-yield');
+      const priceInput = tr.querySelector('.t-price');
+      const otherInput = tr.querySelector('.t-other-benefits');
+      const notesInput = tr.querySelector('.t-notes');
 
       const name = nameInput ? (nameInput.value || ('Treatment ' + id)) : ('Treatment ' + id);
-      const pvBenefits = pvBInput ? toNumber(pvBInput.value) : 0;
-      const pvCosts = pvCInput ? toNumber(pvCInput.value) : 0;
-      const notes = notesInput ? (notesInput.value || '') : '';
 
       treatments.push({
         id: id,
         name: name,
-        pvBenefits: pvBenefits,
-        pvCosts: pvCosts,
-        notes: notes
+        isControl: isControlInput ? isControlInput.checked : false,
+        areaHa: areaInput ? toNumber(areaInput.value) : 0,
+        capitalCost: capitalInput ? toNumber(capitalInput.value) : 0,
+        annualCostPerHa: annualCostInput ? toNumber(annualCostInput.value) : 0,
+        yieldPerHa: yieldInput ? toNumber(yieldInput.value) : 0,
+        pricePerTonne: priceInput ? toNumber(priceInput.value) : 0,
+        otherAnnualBenefitsPerHa: otherInput ? toNumber(otherInput.value) : 0,
+        notes: notesInput ? (notesInput.value || '') : ''
       });
 
-      if (id >= nextId) {
-        nextId = id + 1;
-      }
+      if (id >= nextId) nextId = id + 1;
     });
 
     recalcAllBaseMetrics();
   }
 
-  function syncToInputs() {
-    const tbody = document.querySelector('#inputs-tbody');
+  function syncToTreatmentsTable() {
+    const tbody = document.getElementById('treatments-tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
 
@@ -160,76 +202,84 @@ document.addEventListener('DOMContentLoaded', function () {
       const tr = document.createElement('tr');
       tr.setAttribute('data-id', String(t.id));
 
-      const nameTd = document.createElement('td');
-      const nameInput = document.createElement('input');
-      nameInput.type = 'text';
-      nameInput.className = 'treatment-name';
-      nameInput.value = t.name;
-      nameTd.appendChild(nameInput);
+      function makeInputTd(type, className, value, step) {
+        const td = document.createElement('td');
+        const input = document.createElement('input');
+        input.type = type;
+        input.className = className;
+        if (type === 'number') {
+          input.step = step || 'any';
+        }
+        if (type === 'checkbox') {
+          input.checked = !!value;
+        } else {
+          input.value = value != null ? value : '';
+        }
+        td.appendChild(input);
+        return td;
+      }
 
-      const pvBTd = document.createElement('td');
-      const pvBInput = document.createElement('input');
-      pvBInput.type = 'number';
-      pvBInput.step = 'any';
-      pvBInput.className = 'pv-benefits';
-      pvBInput.value = t.pvBenefits;
-      pvBTd.appendChild(pvBInput);
+      // Name
+      const nameTd = makeInputTd('text', 't-name', t.name);
+      tr.appendChild(nameTd);
 
-      const pvCTd = document.createElement('td');
-      const pvCInput = document.createElement('input');
-      pvCInput.type = 'number';
-      pvCInput.step = 'any';
-      pvCInput.className = 'pv-costs';
-      pvCInput.value = t.pvCosts;
-      pvCTd.appendChild(pvCInput);
+      // Is control
+      const isControlTd = makeInputTd('checkbox', 't-is-control', t.isControl);
+      tr.appendChild(isControlTd);
 
-      const notesTd = document.createElement('td');
-      const notesInput = document.createElement('input');
-      notesInput.type = 'text';
-      notesInput.className = 'treatment-notes';
-      notesInput.value = t.notes || '';
-      notesTd.appendChild(notesInput);
+      // Area
+      const areaTd = makeInputTd('number', 't-area', t.areaHa, '0.01');
+      tr.appendChild(areaTd);
 
+      // Capital cost
+      const capTd = makeInputTd('number', 't-capital', t.capitalCost, '0.01');
+      tr.appendChild(capTd);
+
+      // Annual cost
+      const annTd = makeInputTd('number', 't-annual-cost', t.annualCostPerHa, '0.01');
+      tr.appendChild(annTd);
+
+      // Yield
+      const yTd = makeInputTd('number', 't-yield', t.yieldPerHa, '0.01');
+      tr.appendChild(yTd);
+
+      // Price
+      const pTd = makeInputTd('number', 't-price', t.pricePerTonne, '0.01');
+      tr.appendChild(pTd);
+
+      // Other annual benefits
+      const oTd = makeInputTd('number', 't-other-benefits', t.otherAnnualBenefitsPerHa, '0.01');
+      tr.appendChild(oTd);
+
+      // Notes
+      const notesTd = makeInputTd('text', 't-notes', t.notes);
+      tr.appendChild(notesTd);
+
+      // Remove button
       const removeTd = document.createElement('td');
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'btn btn-secondary btn-small remove-treatment';
       removeBtn.textContent = 'Remove';
       removeTd.appendChild(removeBtn);
-
-      tr.appendChild(nameTd);
-      tr.appendChild(pvBTd);
-      tr.appendChild(pvCTd);
-      tr.appendChild(notesTd);
       tr.appendChild(removeTd);
 
       tbody.appendChild(tr);
     });
   }
 
-  // --------- BASELINE DETECTION ---------
-  function findBaselineIndex(arr) {
-    if (!arr.length) return -1;
-    // Prefer treatments whose name suggests control or current practice
-    const idx = arr.findIndex(function (t) {
-      const name = (t.name || '').toLowerCase();
-      return name.includes('control') || name.includes('current');
-    });
-    if (idx >= 0) return idx;
-    // Fall back to first treatment
-    return 0;
-  }
-
-  // --------- RESULTS RENDERING ---------
-  function renderResultsTable() {
-    const tbody = document.querySelector('#results-tbody');
+  // ---------- RESULTS MATRIX ----------
+  function renderResultsMatrix() {
+    const head = document.getElementById('results-matrix-head');
+    const body = document.getElementById('results-matrix-body');
     const summaryDiv = document.getElementById('results-summary');
-    if (!tbody) return;
-    tbody.innerHTML = '';
+    if (!head || !body) return;
+    head.innerHTML = '';
+    body.innerHTML = '';
 
     if (!treatments.length) {
       if (summaryDiv) {
-        summaryDiv.textContent = 'Add treatments and click “Update results” to see the ranked matrix.';
+        summaryDiv.textContent = 'Add treatments and click “Update results” to see the matrix.';
       }
       return;
     }
@@ -237,79 +287,137 @@ document.addEventListener('DOMContentLoaded', function () {
     const metricsList = treatments.map(function (t) {
       return {
         t: t,
-        metrics: getScenarioMetrics(t)
+        metrics: computeMetricsForTreatment(t)
       };
     });
 
-    const baselineIndex = findBaselineIndex(metricsList.map(function (x) { return x.t; }));
-    const baseline = metricsList[baselineIndex];
-    const baselineMetrics = baseline.metrics;
+    const controlIndex = findControlIndex(metricsList.map(function (x) { return x.t; }));
+    const controlItem = metricsList[controlIndex];
 
     const sorted = metricsList.slice().sort(function (a, b) {
       return (b.metrics.npv || 0) - (a.metrics.npv || 0);
     });
 
     sorted.forEach(function (item, idx) {
-      const tr = document.createElement('tr');
-      if (item.t.id === baseline.t.id) {
-        tr.classList.add('row-baseline');
-      }
-
-      const rankTd = document.createElement('td');
-      rankTd.textContent = String(idx + 1);
-      tr.appendChild(rankTd);
-
-      const nameTd = document.createElement('td');
-      nameTd.textContent = item.t.name;
-      tr.appendChild(nameTd);
-
-      const pvBTd = document.createElement('td');
-      pvBTd.textContent = formatNumber(item.metrics.pvBenefits, 0);
-      tr.appendChild(pvBTd);
-
-      const pvCTd = document.createElement('td');
-      pvCTd.textContent = formatNumber(item.metrics.pvCosts, 0);
-      tr.appendChild(pvCTd);
-
-      const npvTd = document.createElement('td');
-      npvTd.textContent = formatNumber(item.metrics.npv, 0);
-      tr.appendChild(npvTd);
-
-      const deltaTd = document.createElement('td');
-      const delta = item.metrics.npv - baselineMetrics.npv;
-      deltaTd.textContent = formatNumber(delta, 0);
-      tr.appendChild(deltaTd);
-
-      const bcrTd = document.createElement('td');
-      bcrTd.textContent = item.metrics.bcr != null ? formatNumber(item.metrics.bcr, 2) : '';
-      tr.appendChild(bcrTd);
-
-      const roiTd = document.createElement('td');
-      roiTd.textContent = item.metrics.roi != null ? formatNumber(item.metrics.roi, 2) : '';
-      tr.appendChild(roiTd);
-
-      tbody.appendChild(tr);
+      item.rank = idx + 1;
     });
 
-    if (summaryDiv) {
-      const positive = metricsList.filter(function (x) {
-        return x.metrics.npv > 0;
-      }).length;
-      const total = metricsList.length;
-      const best = sorted[0];
-      const scenarioText = getScenarioLabel(currentScenario);
+    const scenarioText = getScenarioLabel(currentScenario);
+    const positive = sorted.filter(function (x) { return x.metrics.npv > 0; }).length;
+    const total = sorted.length;
+    const best = sorted[0];
 
+    if (summaryDiv) {
       summaryDiv.textContent =
-        scenarioText + ': ' +
+        scenarioText + '. ' +
         positive + ' of ' + total + ' treatments have positive NPV. ' +
-        'Best performer: "' + best.t.name + '" (NPV ' + formatNumber(best.metrics.npv, 0) + '). ' +
-        'Baseline: "' + baseline.t.name + '" (NPV ' + formatNumber(baselineMetrics.npv, 0) + ').';
+        'Best performer: "' + best.t.name + '" (NPV ' + getCurrencyLabel() + ' ' + formatNumber(best.metrics.npv, 0) + '). ' +
+        'Control: "' + controlItem.t.name + '" (NPV ' + getCurrencyLabel() + ' ' + formatNumber(controlItem.metrics.npv, 0) + ').';
     }
+
+    // Header row: indicator vs treatments
+    const headerRow = document.createElement('tr');
+
+    const firstTh = document.createElement('th');
+    firstTh.textContent = 'Indicator';
+    headerRow.appendChild(firstTh);
+
+    sorted.forEach(function (item) {
+      const th = document.createElement('th');
+      th.textContent = 'Rank ' + item.rank + ': ' + item.t.name;
+      if (item.t.id === controlItem.t.id) {
+        th.classList.add('col-control');
+      }
+      headerRow.appendChild(th);
+    });
+
+    head.appendChild(headerRow);
+
+    function addRow(label, tooltip, formatter) {
+      const tr = document.createElement('tr');
+      const labelTd = document.createElement('td');
+      labelTd.innerHTML =
+        label +
+        (tooltip
+          ? ' <span class="indicator-tooltip" data-tooltip="' + tooltip.replace(/"/g, '&quot;') + '">?</span>'
+          : '');
+      tr.appendChild(labelTd);
+
+      sorted.forEach(function (item) {
+        const td = document.createElement('td');
+        if (item.t.id === controlItem.t.id) {
+          td.classList.add('col-control');
+        }
+        td.innerHTML = formatter(item, controlItem);
+        tr.appendChild(td);
+      });
+
+      body.appendChild(tr);
+    }
+
+    const currency = getCurrencyLabel();
+
+    addRow(
+      'PV benefits',
+      'Present value of all expected benefits (for example yield × price) across the analysis period.',
+      function (item) {
+        return currency + ' ' + formatNumber(item.metrics.pvBenefits, 0);
+      }
+    );
+
+    addRow(
+      'PV costs',
+      'Present value of capital and recurring costs for this treatment.',
+      function (item) {
+        return currency + ' ' + formatNumber(item.metrics.pvCosts, 0);
+      }
+    );
+
+    addRow(
+      'Net present value (NPV)',
+      'NPV = PV benefits − PV costs. Positive values suggest a net economic gain relative to zero baseline.',
+      function (item) {
+        return currency + ' ' + formatNumber(item.metrics.npv, 0);
+      }
+    );
+
+    addRow(
+      'Δ NPV vs control',
+      'Difference in NPV between this treatment and the control under the current scenario.',
+      function (item, control) {
+        const delta = item.metrics.npv - control.metrics.npv;
+        return currency + ' ' + formatNumber(delta, 0);
+      }
+    );
+
+    addRow(
+      'Benefit–cost ratio (BCR)',
+      'BCR = PV benefits ÷ PV costs. Values above 1 indicate that benefits exceed costs in present value terms.',
+      function (item) {
+        return item.metrics.bcr != null ? formatNumber(item.metrics.bcr, 2) : 'n/a';
+      }
+    );
+
+    addRow(
+      'Return on investment (ROI)',
+      'ROI = NPV ÷ PV costs. This can be read as net gain per dollar of PV cost.',
+      function (item) {
+        return item.metrics.roi != null ? formatNumber(item.metrics.roi, 2) : 'n/a';
+      }
+    );
+
+    addRow(
+      'Rank (by NPV)',
+      'Ranking of treatments based on NPV under the selected scenario. 1 = highest NPV.',
+      function (item) {
+        return String(item.rank);
+      }
+    );
   }
 
-  // --------- SNAPSHOTS ---------
+  // ---------- SNAPSHOTS ----------
   function renderSnapshots() {
-    const container = document.querySelector('#snapshots-container');
+    const container = document.getElementById('snapshots-container');
     const scenarioLabelEl = document.getElementById('snapshots-scenario-label');
     if (!container) return;
     container.innerHTML = '';
@@ -321,59 +429,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!treatments.length) return;
 
     const currency = getCurrencyLabel();
-
-    treatments.forEach(function (t) {
-      const m = getScenarioMetrics(t);
-
-      const card = document.createElement('div');
-      card.className = 'snapshot-card';
-
-      const title = document.createElement('h3');
-      title.textContent = t.name;
-      card.appendChild(title);
-
-      const p1 = document.createElement('p');
-      p1.textContent = 'PV benefits: ' + currency + ' ' + formatNumber(m.pvBenefits, 0);
-      card.appendChild(p1);
-
-      const p2 = document.createElement('p');
-      p2.textContent = 'PV costs: ' + currency + ' ' + formatNumber(m.pvCosts, 0);
-      card.appendChild(p2);
-
-      const p3 = document.createElement('p');
-      p3.textContent = 'Net present value (NPV): ' + currency + ' ' + formatNumber(m.npv, 0);
-      card.appendChild(p3);
-
-      const p4 = document.createElement('p');
-      const bcrText = m.bcr != null ? formatNumber(m.bcr, 2) : 'n/a';
-      const roiText = m.roi != null ? formatNumber(m.roi, 2) : 'n/a';
-      p4.textContent = 'BCR: ' + bcrText + ' | ROI: ' + roiText;
-      card.appendChild(p4);
-
-      if (t.notes) {
-        const p5 = document.createElement('p');
-        p5.textContent = 'Notes: ' + t.notes;
-        card.appendChild(p5);
-      }
-
-      container.appendChild(card);
-    });
-  }
-
-  // --------- INTERPRETATION HELPER ---------
-  function renderHelper() {
-    const container = document.querySelector('#helper-text');
-    if (!container) return;
-
-    if (!treatments.length) {
-      container.value = 'Add at least one treatment and run the analysis to see the plain-language summary here.';
-      return;
-    }
-
     const metricsList = treatments.map(function (t) {
       return {
         t: t,
-        metrics: getScenarioMetrics(t)
+        metrics: computeMetricsForTreatment(t)
       };
     });
 
@@ -381,74 +440,155 @@ document.addEventListener('DOMContentLoaded', function () {
       return (b.metrics.npv || 0) - (a.metrics.npv || 0);
     });
 
-    const best = sorted[0];
-    const worst = sorted[sorted.length - 1];
+    sorted.forEach(function (item, idx) {
+      const card = document.createElement('div');
+      card.className = 'snapshot-card';
 
-    const baselineIndex = findBaselineIndex(metricsList.map(function (x) { return x.t; }));
-    const baseline = metricsList[baselineIndex];
+      const title = document.createElement('h3');
+      title.textContent = 'Rank ' + (idx + 1) + ': ' + item.t.name + (item.t.isControl ? ' (Control)' : '');
+      card.appendChild(title);
 
-    const dr = getDiscountRate();
-    const years = getAnalysisYears();
-    const currency = getCurrencyLabel();
-    const scenarioText = getScenarioLabel(currentScenario);
+      const p1 = document.createElement('p');
+      p1.textContent = 'NPV: ' + currency + ' ' + formatNumber(item.metrics.npv, 0);
+      card.appendChild(p1);
 
-    let text = '';
-    text += 'This summary helps interpret the economic results for your farm.\n\n';
-    if (dr != null && years != null) {
-      text += 'Your PV numbers are assumed to be calculated over approximately ' + years +
-        ' years using a discount rate of about ' + dr + '% per year. ';
-    } else if (dr != null) {
-      text += 'Your PV numbers are assumed to use a discount rate of about ' + dr + '% per year. ';
-    }
-    text += 'Net present value (NPV) shows the overall gain after subtracting costs from benefits across the whole period. ';
-    text += 'A positive NPV means the treatment is expected to return more benefits than it costs in today\'s ' +
-      (currency ? '(' + currency + ')' : '') + ' terms.\n\n';
+      const p2 = document.createElement('p');
+      p2.textContent = 'PV benefits: ' + currency + ' ' + formatNumber(item.metrics.pvBenefits, 0) +
+        ' | PV costs: ' + currency + ' ' + formatNumber(item.metrics.pvCosts, 0);
+      card.appendChild(p2);
 
-    text += 'The current scenario is: ' + scenarioText + '. ';
-    text += 'Under this scenario, the treatment with the highest NPV is "' + best.t.name + '". ';
-    text += 'Its NPV is ' + currency + ' ' + formatNumber(best.metrics.npv, 0) +
-      ', with present value benefits of ' + currency + ' ' + formatNumber(best.metrics.pvBenefits, 0) +
-      ' and present value costs of ' + currency + ' ' + formatNumber(best.metrics.pvCosts, 0) + '. ';
+      const p3 = document.createElement('p');
+      const bcrText = item.metrics.bcr != null ? formatNumber(item.metrics.bcr, 2) : 'n/a';
+      const roiText = item.metrics.roi != null ? formatNumber(item.metrics.roi, 2) : 'n/a';
+      p3.textContent = 'BCR: ' + bcrText + ' | ROI: ' + roiText;
+      card.appendChild(p3);
 
-    if (best.metrics.bcr != null) {
-      text += 'Its benefit–cost ratio (BCR) is ' + formatNumber(best.metrics.bcr, 2) +
-        ', meaning that each dollar of cost is expected to return about ' +
-        formatNumber(best.metrics.bcr, 2) + ' dollars in benefits. ';
-    }
+      const p4 = document.createElement('p');
+      p4.textContent = 'Area: ' + formatNumber(item.t.areaHa, 2) + ' ha';
+      card.appendChild(p4);
 
-    text += '\n\nThe baseline option is "' + baseline.t.name + '". ';
-    text += 'Compared with this baseline, "' + best.t.name + '" has an NPV that is higher by about ' +
-      currency + ' ' + formatNumber(best.metrics.npv - baseline.metrics.npv, 0) + '. ';
-
-    if (sorted.length > 1) {
-      text += '\n\nFor contrast, the treatment with the lowest NPV in this scenario is "' + worst.t.name + '" ';
-      text += 'with an NPV of ' + currency + ' ' + formatNumber(worst.metrics.npv, 0) + '. ';
-      if (worst.metrics.bcr != null) {
-        text += 'Its BCR is ' + formatNumber(worst.metrics.bcr, 2) + ', which is weaker than the best option. ';
+      if (item.t.notes) {
+        const p5 = document.createElement('p');
+        p5.textContent = 'Notes: ' + item.t.notes;
+        card.appendChild(p5);
       }
-    }
 
-    text += '\n\nThese figures do not tell you what to choose. ';
-    text += 'They are decision support numbers to help you think about which options deliver stronger long-term gains ';
-    text += 'for the money invested, compared with your current practice. ';
-    text += 'You should also consider risk (for example how results might change under dry years or low prices), labour ';
-    text += 'requirements, cash flow timing, and how well each treatment fits with your wider farm plan and personal goals.\n';
-
-    container.value = text;
+      container.appendChild(card);
+    });
   }
 
-  // --------- CSV IMPORT ---------
+  // ---------- AI PROMPT ----------
+  function buildAIPrompt() {
+    const textarea = document.getElementById('ai-prompt-text');
+    if (!textarea) return;
+
+    if (!treatments.length) {
+      textarea.value =
+        'No treatments are currently defined in Farming CBA Decision Tool 2. ' +
+        'Please add treatments and calculate results, then refresh this AI prompt.';
+      return;
+    }
+
+    const r = getDiscountRate();
+    const years = getAnalysisYears();
+    const currency = getCurrencyLabel();
+    const scenario = currentScenario;
+
+    const metricsList = treatments.map(function (t) {
+      const m = computeMetricsForTreatment(t);
+      return { t, m };
+    });
+
+    const controlIndex = findControlIndex(metricsList.map(function (x) { return x.t; }));
+    const control = metricsList[controlIndex];
+
+    const sorted = metricsList.slice().sort(function (a, b) {
+      return (b.m.npv || 0) - (a.m.npv || 0);
+    });
+
+    // Build a JSON-style prompt (not strictly JSON to keep it copy-friendly)
+    let prompt = '';
+    prompt += 'You are an agricultural economist and farm adviser.\n';
+    prompt += 'Your task is to interpret results from a farm cost–benefit analysis tool called "' + TOOL_NAME + '".\n';
+    prompt += 'The tool compares multiple treatments against a control using present value (PV) metrics.\n\n';
+
+    prompt += 'CONSTRAINTS:\n';
+    prompt += '- Use plain English suitable for a farmer or farm decision maker.\n';
+    prompt += '- Do NOT tell the user what to choose, and do NOT set hard thresholds.\n';
+    prompt += '- Treat the tool as decision support, not decision making.\n';
+    prompt += '- Explain what each indicator means (NPV, PV benefits, PV costs, BCR, ROI).\n';
+    prompt += '- Focus on why treatments perform well or poorly and what drives these results.\n';
+    prompt += '- For lower BCR or low-performing treatments, suggest realistic, practical ways to improve performance ';
+    prompt += '(for example reducing costs, improving yields, achieving better prices, or changing agronomic practices). ';
+    prompt += 'Frame these as options for reflection, not rules.\n';
+    prompt += '- Always refer back to risk, uncertainty, and fit with the whole-farm plan.\n\n';
+
+    prompt += 'DEFINITIONS (use these verbatim):\n';
+    prompt += 'NPV = PV benefits − PV costs. Positive NPV indicates net economic gain relative to a zero baseline for that treatment scenario.\n';
+    prompt += 'PV benefits and PV costs are discounted sums over time using the base discount rate.\n';
+    prompt += 'BCR = PV benefits ÷ PV costs. Values above 1 imply benefits exceed costs in present value terms.\n';
+    prompt += 'ROI = NPV ÷ PV costs. Interpretable as net gain per dollar of PV cost.\n\n';
+
+    prompt += 'GLOBAL ASSUMPTIONS:\n';
+    prompt += '- Discount rate (per year): ' + (r * 100).toFixed(2) + '%\n';
+    prompt += '- Analysis horizon (years): ' + years + '\n';
+    prompt += '- Currency: ' + currency + '\n';
+    prompt += '- Scenario: ' + getScenarioLabel(scenario) + '\n\n';
+
+    prompt += 'CONTROL TREATMENT:\n';
+    prompt += '- Name: ' + control.t.name + '\n';
+    prompt += '- IsControl flag: ' + (control.t.isControl ? 'true' : 'false') + '\n';
+    prompt += '- Area (ha): ' + control.t.areaHa + '\n';
+    prompt += '- NPV: ' + currency + ' ' + formatNumber(control.m.npv, 0) + '\n';
+    prompt += '- PV benefits: ' + currency + ' ' + formatNumber(control.m.pvBenefits, 0) + '\n';
+    prompt += '- PV costs: ' + currency + ' ' + formatNumber(control.m.pvCosts, 0) + '\n\n';
+
+    prompt += 'ALL TREATMENTS (sorted by NPV, highest first):\n';
+    sorted.forEach(function (item, idx) {
+      const delta = item.m.npv - control.m.npv;
+      prompt += '- Treatment ' + (idx + 1) + ':\n';
+      prompt += '  Name: ' + item.t.name + (item.t.isControl ? ' (Control)' : '') + '\n';
+      prompt += '  Area_ha: ' + item.t.areaHa + '\n';
+      prompt += '  Yield_t_per_ha: ' + item.t.yieldPerHa + '\n';
+      prompt += '  Price_per_tonne: ' + item.t.pricePerTonne + '\n';
+      prompt += '  CapitalCost_year0: ' + item.t.capitalCost + '\n';
+      prompt += '  AnnualCost_per_ha: ' + item.t.annualCostPerHa + '\n';
+      prompt += '  OtherAnnualBenefits_per_ha: ' + item.t.otherAnnualBenefitsPerHa + '\n';
+      prompt += '  Notes: ' + (item.t.notes || '') + '\n';
+      prompt += '  Metrics_under_scenario:\n';
+      prompt += '    PV_benefits: ' + item.m.pvBenefits.toFixed(2) + '\n';
+      prompt += '    PV_costs: ' + item.m.pvCosts.toFixed(2) + '\n';
+      prompt += '    NPV: ' + item.m.npv.toFixed(2) + '\n';
+      prompt += '    Delta_NPV_vs_control: ' + delta.toFixed(2) + '\n';
+      prompt += '    BCR: ' + (item.m.bcr != null ? item.m.bcr.toFixed(4) : 'null') + '\n';
+      prompt += '    ROI: ' + (item.m.roi != null ? item.m.roi.toFixed(4) : 'null') + '\n';
+    });
+    prompt += '\n';
+
+    prompt += 'YOUR OUTPUT:\n';
+    prompt += '1. Provide a 2–3 page plain-language interpretation of these results.\n';
+    prompt += '   - Begin with a short overview of the economic picture (how many treatments look attractive, and how they compare to the control).\n';
+    prompt += '   - Explain clearly why the top treatments have stronger NPV, BCR, and ROI (for example higher yield, better prices, lower costs, or a combination).\n';
+    prompt += '   - Explain why some treatments underperform and what drives that (high capital cost, high annual costs, weak yield response, low prices, etc.).\n';
+    prompt += '   - For each major treatment or group of treatments, describe trade-offs (for example higher NPV but also higher upfront capital and risk).\n';
+    prompt += '   - Explicitly state that results are sensitive to yields, prices, costs, discount rate, and analysis horizon.\n';
+    prompt += '2. Provide a short section on learning and improvement:\n';
+    prompt += '   - For treatments with low BCR or negative NPV, suggest practical ways the farmer could potentially improve outcomes, e.g. reducing costs per hectare, refining amendment rates, improving agronomy, or targeting better prices.\n';
+    prompt += '   - Emphasise these are options for reflection and further analysis, not rules or thresholds.\n';
+    prompt += '3. End with a reminder that this tool is decision support only, and that choices should consider risk, cash flow, labour, and alignment with the whole-farm strategy.\n';
+
+    textarea.value = prompt;
+  }
+
+  // ---------- CSV IMPORT / EXPORT ----------
   function parseCsvLine(line) {
     const cells = [];
     let current = '';
     let insideQuotes = false;
-
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
-
       if (ch === '"') {
         if (insideQuotes && line[i + 1] === '"') {
-          // Escaped quote
           current += '"';
           i++;
         } else {
@@ -473,199 +613,309 @@ document.addEventListener('DOMContentLoaded', function () {
     return lines.map(parseCsvLine);
   }
 
-  function handleCsvText(text) {
+  function importFromCsvText(text) {
     const rows = parseCsv(text);
     if (!rows.length || rows.length < 2) {
-      alert('CSV file appears to be empty or has no data rows.');
+      alert('CSV appears to be empty or has no data rows.');
       return;
     }
 
-    const header = rows[0].map(function (h) {
-      return h.trim().toLowerCase();
-    });
+    const header = rows[0].map(function (h) { return h.trim(); });
+    const nameIdx = header.indexOf('TreatmentName');
+    const isControlIdx = header.indexOf('IsControl');
+    const areaIdx = header.indexOf('AreaHa');
+    const yieldIdx = header.indexOf('Yield_t_per_ha');
+    const priceIdx = header.indexOf('Price_per_tonne');
+    const capIdx = header.indexOf('CapitalCost_year0');
+    const annIdx = header.indexOf('AnnualCost_per_ha');
+    const otherIdx = header.indexOf('OtherAnnualBenefits_per_ha');
+    const notesIdx = header.indexOf('Notes');
 
-    function findIndex(matchFn) {
-      return header.findIndex(matchFn);
-    }
-
-    const idxName = findIndex(function (h) { return h.includes('treatment') || h.includes('name'); });
-    const idxBenefits = findIndex(function (h) { return h.includes('benefit'); });
-    const idxCosts = findIndex(function (h) { return h.includes('cost'); });
-    const idxNotes = findIndex(function (h) { return h.includes('note'); });
-
-    if (idxName === -1 || idxBenefits === -1 || idxCosts === -1) {
-      alert('CSV must include columns for treatment name, PV benefits, and PV costs.');
+    if (nameIdx === -1 || areaIdx === -1 || yieldIdx === -1 || priceIdx === -1 ||
+      capIdx === -1 || annIdx === -1 || otherIdx === -1) {
+      alert('CSV is missing one or more required headers.\n' +
+        'Required: TreatmentName, IsControl, AreaHa, Yield_t_per_ha, Price_per_tonne, ' +
+        'CapitalCost_year0, AnnualCost_per_ha, OtherAnnualBenefits_per_ha, Notes');
       return;
     }
 
     const imported = [];
+
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row || row.length === 0) continue;
+      const name = row[nameIdx] != null ? String(row[nameIdx]).trim() : '';
+      if (!name) continue;
 
-      const rawName = row[idxName] != null ? String(row[idxName]).trim() : '';
-      const rawBenefits = row[idxBenefits] != null ? row[idxBenefits] : '';
-      const rawCosts = row[idxCosts] != null ? row[idxCosts] : '';
-      const rawNotes = idxNotes !== -1 && row[idxNotes] != null ? row[idxNotes] : '';
-
-      if (!rawName && !rawBenefits && !rawCosts && !rawNotes) {
-        continue;
-      }
+      const isControlRaw = isControlIdx !== -1 && row[isControlIdx] != null ? String(row[isControlIdx]).trim().toLowerCase() : '';
+      const isControl = ['yes', 'y', 'true', '1'].indexOf(isControlRaw) !== -1;
 
       imported.push({
         id: imported.length + 1,
-        name: rawName || ('Treatment ' + (imported.length + 1)),
-        pvBenefits: toNumber(rawBenefits),
-        pvCosts: toNumber(rawCosts),
-        notes: String(rawNotes || '')
+        name: name,
+        isControl: isControl,
+        areaHa: areaIdx !== -1 ? toNumber(row[areaIdx]) : 0,
+        yieldPerHa: yieldIdx !== -1 ? toNumber(row[yieldIdx]) : 0,
+        pricePerTonne: priceIdx !== -1 ? toNumber(row[priceIdx]) : 0,
+        capitalCost: capIdx !== -1 ? toNumber(row[capIdx]) : 0,
+        annualCostPerHa: annIdx !== -1 ? toNumber(row[annIdx]) : 0,
+        otherAnnualBenefitsPerHa: otherIdx !== -1 ? toNumber(row[otherIdx]) : 0,
+        notes: notesIdx !== -1 && row[notesIdx] != null ? String(row[notesIdx]) : ''
       });
     }
 
     if (!imported.length) {
-      alert('No usable data rows found in CSV.');
+      alert('No usable rows found in CSV.');
       return;
     }
 
     treatments = imported;
     nextId = imported.length + 1;
     recalcAllBaseMetrics();
-    syncToInputs();
+    syncToTreatmentsTable();
     updateAllOutputs();
   }
 
-  // --------- EXPORT CSV ---------
-  function exportCSV() {
+  function exportResultsMatrixCsv() {
     if (!treatments.length) {
-      alert('Nothing to export. Please add at least one treatment.');
+      alert('Nothing to export. Please add treatments first.');
       return;
     }
 
-    const header = [
-      'Treatment',
-      'PV_benefits',
-      'PV_costs',
-      'NPV',
-      'BCR',
-      'ROI',
-      'Notes'
-    ];
-    const rows = [header.join(',')];
+    const metricsList = treatments.map(function (t) {
+      return {
+        t: t,
+        metrics: computeMetricsForTreatment(t)
+      };
+    });
+    const controlIndex = findControlIndex(metricsList.map(function (x) { return x.t; }));
+    const control = metricsList[controlIndex];
 
-    treatments.forEach(function (t) {
-      rows.push([
-        '"' + String(t.name).replace(/"/g, '""') + '"',
-        toNumber(t.pvBenefits),
-        toNumber(t.pvCosts),
-        t.npv != null ? t.npv : '',
-        t.bcr != null ? t.bcr : '',
-        t.roi != null ? t.roi : '',
-        '"' + String(t.notes || '').replace(/"/g, '""') + '"'
-      ].join(','));
+    const sorted = metricsList.slice().sort(function (a, b) {
+      return (b.metrics.npv || 0) - (a.metrics.npv || 0);
+    });
+
+    const header = ['Indicator'];
+    sorted.forEach(function (item, idx) {
+      header.push('Rank ' + (idx + 1) + ': ' + item.t.name);
+    });
+
+    const rows = [];
+    rows.push(header.join(','));
+
+    const currency = getCurrencyLabel();
+
+    function addRowCsv(label, formatter) {
+      const row = [label];
+      sorted.forEach(function (item) {
+        row.push(formatter(item, control));
+      });
+      rows.push(row.join(','));
+    }
+
+    addRowCsv('PV benefits (' + currency + ')', function (item) {
+      return item.metrics.pvBenefits.toFixed(2);
+    });
+
+    addRowCsv('PV costs (' + currency + ')', function (item) {
+      return item.metrics.pvCosts.toFixed(2);
+    });
+
+    addRowCsv('NPV (' + currency + ')', function (item) {
+      return item.metrics.npv.toFixed(2);
+    });
+
+    addRowCsv('Delta NPV vs control (' + currency + ')', function (item, ctl) {
+      return (item.metrics.npv - ctl.metrics.npv).toFixed(2);
+    });
+
+    addRowCsv('BCR', function (item) {
+      return item.metrics.bcr != null ? item.metrics.bcr.toFixed(4) : '';
+    });
+
+    addRowCsv('ROI', function (item) {
+      return item.metrics.roi != null ? item.metrics.roi.toFixed(4) : '';
+    });
+
+    addRowCsv('Rank (by NPV)', function (item) {
+      return String(sorted.findIndex(function (x) { return x.t.id === item.t.id; }) + 1);
     });
 
     const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'farming_cba_results.csv';
+    a.download = TOOL_NAME.replace(/\s+/g, '_').toLowerCase() + '_results_matrix.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 
-  // --------- DEMO & CORE ACTIONS ---------
+  function downloadTemplateCsv(blankOnly) {
+    const header = [
+      'TreatmentName',
+      'IsControl',
+      'AreaHa',
+      'Yield_t_per_ha',
+      'Price_per_tonne',
+      'CapitalCost_year0',
+      'AnnualCost_per_ha',
+      'OtherAnnualBenefits_per_ha',
+      'Notes'
+    ];
+    const rows = [];
+    rows.push(header.join(','));
+
+    if (!blankOnly && treatments.length) {
+      treatments.forEach(function (t) {
+        rows.push([
+          '"' + String(t.name).replace(/"/g, '""') + '"',
+          t.isControl ? 'yes' : 'no',
+          t.areaHa,
+          t.yieldPerHa,
+          t.pricePerTonne,
+          t.capitalCost,
+          t.annualCostPerHa,
+          t.otherAnnualBenefitsPerHa,
+          '"' + String(t.notes || '').replace(/"/g, '""') + '"'
+        ].join(','));
+      });
+    } else {
+      // one blank example row
+      rows.push('"Control",yes,100,0,0,0,0,0,"Example control / current practice row"');
+      rows.push('"Treatment 1",no,100,0,0,0,0,0,"Example treatment row"');
+    }
+
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = TOOL_NAME.replace(/\s+/g, '_').toLowerCase() + '_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadAIPromptTxt() {
+    const textarea = document.getElementById('ai-prompt-text');
+    if (!textarea || !textarea.value) {
+      alert('AI prompt is empty. Please click “Refresh AI prompt” first.');
+      return;
+    }
+    const blob = new Blob([textarea.value], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = TOOL_NAME.replace(/\s+/g, '_').toLowerCase() + '_ai_prompt.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------- CORE ACTIONS ----------
   function addBlankTreatment() {
     treatments.push({
       id: nextId++,
       name: 'Treatment ' + (treatments.length + 1),
-      pvBenefits: 0,
-      pvCosts: 0,
+      isControl: treatments.length === 0, // first row default as control
+      areaHa: 100,
+      capitalCost: 0,
+      annualCostPerHa: 0,
+      yieldPerHa: 0,
+      pricePerTonne: 0,
+      otherAnnualBenefitsPerHa: 0,
       notes: ''
     });
-    syncToInputs();
+    syncToTreatmentsTable();
   }
 
-  function clearAll() {
+  function clearAllTreatments() {
     treatments = [];
     nextId = 1;
-    syncToInputs();
-    renderResultsTable();
+    syncToTreatmentsTable();
+    renderResultsMatrix();
     renderSnapshots();
-    renderHelper();
+    buildAIPrompt();
   }
 
-  function loadDemo() {
+  function loadSmallSample() {
     treatments = [
       {
         id: 1,
-        name: 'Control / Current practice',
-        pvBenefits: 0,
-        pvCosts: 0,
-        notes: 'Baseline for comparison. Existing farm practice without new investment.'
+        name: 'Control – current practice',
+        isControl: true,
+        areaHa: 100,
+        capitalCost: 0,
+        annualCostPerHa: 250,
+        yieldPerHa: 2.5,
+        pricePerTonne: 400,
+        otherAnnualBenefitsPerHa: 0,
+        notes: 'Baseline system using existing machinery and inputs.'
       },
       {
         id: 2,
-        name: 'Improved fertiliser program',
-        pvBenefits: 480000,
-        pvCosts: 260000,
-        notes: 'More precise nutrient management with moderate upfront costs.'
+        name: 'Deep OM (CP1)',
+        isControl: false,
+        areaHa: 100,
+        capitalCost: 16500,
+        annualCostPerHa: 260,
+        yieldPerHa: 3.0,
+        pricePerTonne: 400,
+        otherAnnualBenefitsPerHa: 0,
+        notes: 'Illustrative soil organic matter amendment based on Faba Beans dataset.'
       },
       {
         id: 3,
-        name: 'Precision irrigation upgrade',
-        pvBenefits: 620000,
-        pvCosts: 320000,
-        notes: 'Higher capital cost but strong gains in yield and water efficiency.'
+        name: 'Deep OM + Gypsum (CP2)',
+        isControl: false,
+        areaHa: 100,
+        capitalCost: 24000,
+        annualCostPerHa: 270,
+        yieldPerHa: 3.1,
+        pricePerTonne: 400,
+        otherAnnualBenefitsPerHa: 0,
+        notes: 'Illustrative deep OM and gypsum combination.'
       },
       {
         id: 4,
-        name: 'Drought-resilient seed & soil package',
-        pvBenefits: 560000,
-        pvCosts: 300000,
-        notes: 'Package focused on stabilising yields in dry seasons.'
-      },
-      {
-        id: 5,
-        name: 'Mixed precision + drought package',
-        pvBenefits: 710000,
-        pvCosts: 420000,
-        notes: 'Combines irrigation control with drought-resilient seed and soil management.'
+        name: 'Deep Carbon-coated mineral (CCM)',
+        isControl: false,
+        areaHa: 100,
+        capitalCost: 3225,
+        annualCostPerHa: 255,
+        yieldPerHa: 2.9,
+        pricePerTonne: 400,
+        otherAnnualBenefitsPerHa: 0,
+        notes: 'Illustrative carbon-coated mineral treatment.'
       }
     ];
-    nextId = 6;
+    nextId = 5;
     recalcAllBaseMetrics();
-    syncToInputs();
+    syncToTreatmentsTable();
     updateAllOutputs();
   }
 
   function updateAllOutputs() {
-    syncFromInputs();
-    renderResultsTable();
+    syncFromTreatmentsTable();
+    renderResultsMatrix();
     renderSnapshots();
-    renderHelper();
+    buildAIPrompt();
   }
 
-  // --------- TABS ---------
+  // ---------- TABS ----------
   function setupTabs() {
     const tabButtons = document.querySelectorAll('[data-tab]');
     const panels = document.querySelectorAll('.tab-panel');
-
-    if (!tabButtons.length || !panels.length) {
-      return;
-    }
 
     tabButtons.forEach(function (btn) {
       btn.addEventListener('click', function () {
         const target = btn.getAttribute('data-tab');
         if (!target) return;
 
-        tabButtons.forEach(function (b) {
-          b.classList.remove('active');
-        });
-        btn.classList.add('active');
-
+        tabButtons.forEach(function (b) { b.classList.remove('active'); });
         panels.forEach(function (panel) {
           if (panel.id === 'tab-' + target) {
             panel.classList.add('active');
@@ -673,50 +923,39 @@ document.addEventListener('DOMContentLoaded', function () {
             panel.classList.remove('active');
           }
         });
+
+        btn.classList.add('active');
       });
     });
   }
 
-  // --------- EVENT HANDLERS ---------
+  // ---------- EVENT HANDLERS ----------
   function setupEventHandlers() {
     const addBtn = document.getElementById('btn-add-treatment');
     if (addBtn) {
-      addBtn.addEventListener('click', function () {
-        addBlankTreatment();
-      });
+      addBtn.addEventListener('click', function () { addBlankTreatment(); });
     }
 
     const updateBtn = document.getElementById('btn-update-results');
     if (updateBtn) {
-      updateBtn.addEventListener('click', function () {
-        updateAllOutputs();
-      });
+      updateBtn.addEventListener('click', function () { updateAllOutputs(); });
     }
 
     const clearBtn = document.getElementById('btn-clear-all');
     if (clearBtn) {
       clearBtn.addEventListener('click', function () {
         if (confirm('Clear all treatments and reset the tool?')) {
-          clearAll();
+          clearAllTreatments();
         }
       });
     }
 
-    const demoBtn = document.getElementById('btn-load-demo');
-    if (demoBtn) {
-      demoBtn.addEventListener('click', function () {
-        if (confirm('Replace current inputs with the demo farm scenario?')) {
-          loadDemo();
+    const sampleBtn = document.getElementById('btn-load-sample');
+    if (sampleBtn) {
+      sampleBtn.addEventListener('click', function () {
+        if (confirm('Replace current inputs with a small sample scenario?')) {
+          loadSmallSample();
         }
-      });
-    }
-
-    const exportBtn = document.getElementById('btn-export-csv');
-    if (exportBtn) {
-      exportBtn.addEventListener('click', function () {
-        // Use current base metrics for export
-        syncFromInputs();
-        exportCSV();
       });
     }
 
@@ -731,16 +970,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (scenarioSelect) {
       scenarioSelect.addEventListener('change', function () {
         currentScenario = this.value || 'base';
-        // Re-render outputs under new scenario, using latest treatment state
-        renderResultsTable();
+        renderResultsMatrix();
         renderSnapshots();
-        renderHelper();
+        buildAIPrompt();
       });
     }
 
-    const inputsTable = document.getElementById('inputs-tbody');
-    if (inputsTable) {
-      inputsTable.addEventListener('click', function (ev) {
+    const treatmentsTable = document.getElementById('treatments-tbody');
+    if (treatmentsTable) {
+      treatmentsTable.addEventListener('click', function (ev) {
         const target = ev.target;
         if (!(target instanceof HTMLElement)) return;
         if (target.classList.contains('remove-treatment')) {
@@ -749,13 +987,30 @@ document.addEventListener('DOMContentLoaded', function () {
           const idAttr = tr.getAttribute('data-id');
           const id = idAttr ? parseInt(idAttr, 10) : null;
           if (id != null) {
-            treatments = treatments.filter(function (t) {
-              return t.id !== id;
-            });
-            syncToInputs();
+            treatments = treatments.filter(function (t) { return t.id !== id; });
+            syncToTreatmentsTable();
             updateAllOutputs();
           }
         }
+      });
+    }
+
+    const discountInput = document.getElementById('discount-rate');
+    if (discountInput) {
+      discountInput.addEventListener('input', function () { updateAllOutputs(); });
+    }
+
+    const yearsInput = document.getElementById('analysis-years');
+    if (yearsInput) {
+      yearsInput.addEventListener('input', function () { updateAllOutputs(); });
+    }
+
+    const currencyInput = document.getElementById('currency-label');
+    if (currencyInput) {
+      currencyInput.addEventListener('input', function () {
+        renderResultsMatrix();
+        renderSnapshots();
+        buildAIPrompt();
       });
     }
 
@@ -767,44 +1022,51 @@ document.addEventListener('DOMContentLoaded', function () {
         const reader = new FileReader();
         reader.onload = function (e) {
           const text = e.target.result;
-          handleCsvText(text);
+          importFromCsvText(text);
           fileInput.value = '';
         };
         reader.readAsText(file);
       });
     }
 
-    const discountInput = document.getElementById('discount-rate');
-    if (discountInput) {
-      discountInput.addEventListener('input', function () {
-        renderHelper();
+    const exportResultsBtn = document.getElementById('btn-export-results-csv');
+    if (exportResultsBtn) {
+      exportResultsBtn.addEventListener('click', function () { exportResultsMatrixCsv(); });
+    }
+
+    const downloadTemplateBtn = document.getElementById('btn-download-template');
+    if (downloadTemplateBtn) {
+      downloadTemplateBtn.addEventListener('click', function () {
+        downloadTemplateCsv(true);
       });
     }
 
-    const yearsInput = document.getElementById('analysis-years');
-    if (yearsInput) {
-      yearsInput.addEventListener('input', function () {
-        renderHelper();
+    const downloadCurrentBtn = document.getElementById('btn-download-current');
+    if (downloadCurrentBtn) {
+      downloadCurrentBtn.addEventListener('click', function () {
+        downloadTemplateCsv(false);
       });
     }
 
-    const currencyInput = document.getElementById('currency-label');
-    if (currencyInput) {
-      currencyInput.addEventListener('input', function () {
-        renderSnapshots();
-        renderHelper();
-      });
+    const refreshAIBtn = document.getElementById('btn-refresh-ai-prompt');
+    if (refreshAIBtn) {
+      refreshAIBtn.addEventListener('click', function () { buildAIPrompt(); });
+    }
+
+    const downloadAIBtn = document.getElementById('btn-download-ai-prompt');
+    if (downloadAIBtn) {
+      downloadAIBtn.addEventListener('click', function () { downloadAIPromptTxt(); });
     }
   }
 
-  // --------- INIT ---------
+  // ---------- INIT ----------
   function init() {
     setupTabs();
     setupEventHandlers();
-    addBlankTreatment(); // start with one blank row for user
-    renderResultsTable();
+    addBlankTreatment(); // start with one blank row (marked as control)
+    renderResultsMatrix();
     renderSnapshots();
-    renderHelper();
+    buildAIPrompt();
   }
 
   init();
