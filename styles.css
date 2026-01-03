@@ -1,4 +1,4 @@
-/* styles.css – Farming CBA Decision Tool 2 (functional, upgraded styling) */
+/* styles.css – Farming CBA Decision Tool 2 (advanced, decision-aid ready) */
 :root {
   --color-bg: #f3f4f6;
   --color-card: #ffffff;
@@ -171,6 +171,11 @@ body {
   border: 1px solid rgba(148, 163, 184, 0.4);
   box-shadow: var(--shadow-card);
   padding: 18px 20px 18px;
+  margin-bottom: 14px;
+}
+
+.card-narrow-top {
+  margin-top: 10px;
 }
 
 .card-header h2 {
@@ -296,7 +301,7 @@ body {
 .table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 550px;
+  min-width: 650px;
 }
 
 .table thead {
@@ -330,6 +335,13 @@ body {
   padding: 6px 8px;
 }
 
+/* Baseline row in results */
+
+.row-baseline {
+  background: #ecfeff !important;
+  font-weight: 600;
+}
+
 /* Inputs in table */
 
 .table input[type="text"],
@@ -346,6 +358,66 @@ body {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.3);
+}
+
+/* Assumptions */
+
+.assumptions-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.assumption-field label {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assumption-field input {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border-strong);
+  font-size: 0.9rem;
+}
+
+/* Results toolbar */
+
+.results-toolbar {
+  margin: 12px 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.results-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scenario-label {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.scenario-label select {
+  margin-left: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  font-size: 0.9rem;
+  background: #f9fafb;
+}
+
+.results-summary {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
 }
 
 /* Snapshots */
@@ -376,6 +448,12 @@ body {
   color: var(--color-text-muted);
 }
 
+.scenario-label-text {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
 /* Excel & export */
 
 .excel-layout {
@@ -400,6 +478,16 @@ body {
 
 .excel-step p {
   margin: 0 0 8px;
+}
+
+.file-input {
+  margin-top: 6px;
+  font-size: 0.85rem;
+}
+
+.excel-tip {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }
 
 /* Helper */
@@ -444,7 +532,11 @@ body {
   .tabs,
   #btn-load-demo,
   #btn-print,
-  #btn-clear-all {
+  #btn-clear-all,
+  #btn-add-treatment,
+  #btn-update-results,
+  #file-import-csv,
+  #btn-export-csv {
     display: none !important;
   }
 
@@ -477,5 +569,9 @@ body {
 
   .table {
     font-size: 0.84rem;
+  }
+
+  .results-toolbar {
+    align-items: flex-start;
   }
 }
