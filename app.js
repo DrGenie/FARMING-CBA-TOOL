@@ -1,3 +1,4 @@
+// app.js – Farming CBA Decision Tool 2
 (function () {
   function init() {
     // ---------- STATE ----------
@@ -77,7 +78,7 @@
       };
     }
 
-    // ---------- DOM REFERENCES (NOW SAFE: DOM IS READY) ----------
+    // ---------- DOM REFERENCES ----------
 
     var tabButtons = Array.prototype.slice.call(
       document.querySelectorAll(".tab-button")
@@ -364,6 +365,7 @@
             return;
           }
 
+          // Group rows by Amendment and average yield and treatment input costs
           var byAmend = {};
           for (var r = 0; r < rows.length; r++) {
             var row = rows[r];
@@ -385,9 +387,9 @@
 
           var newTreatments = [];
           var hasControl = false;
-          for (var name in byAmend) {
-            if (!byAmend.hasOwnProperty(name)) continue;
-            var agg = byAmend[name];
+          for (var nm in byAmend) {
+            if (!byAmend.hasOwnProperty(nm)) continue;
+            var agg = byAmend[nm];
             var sumY = 0;
             var sumC = 0;
             for (var k = 0; k < agg.yields.length; k++) sumY += agg.yields[k];
@@ -395,11 +397,11 @@
             var avgY = agg.yields.length ? sumY / agg.yields.length : 0;
             var avgC = agg.costs.length ? sumC / agg.costs.length : 0;
 
-            var isControl = name.toLowerCase().indexOf("control") !== -1;
+            var isControl = nm.toLowerCase().indexOf("control") !== -1;
             if (isControl) hasControl = true;
 
             var t = createTreatment(
-              name,
+              nm,
               isControl,
               avgY,
               "",
@@ -1028,7 +1030,6 @@
     recomputeAndRender();
   }
 
-  // Ensure init runs whether the script is in <head> or end of <body>
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {
