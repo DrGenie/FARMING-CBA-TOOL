@@ -111,7 +111,6 @@
     // Snapshot
     dom.printSnapshotBtn.addEventListener("click", () => {
       switchTab("snapshot");
-      // Slight delay to ensure tab is visible before print
       setTimeout(() => window.print(), 100);
     });
 
@@ -123,7 +122,6 @@
   }
 
   function initDefaultState() {
-    // Reasonable defaults
     state.timeHorizon = 20;
     state.discountRate = 7;
     state.currency = "AUD";
@@ -132,7 +130,6 @@
     dom.discountRate.value = state.discountRate;
     dom.currency.value = state.currency;
 
-    // Default treatments: one control + two treatments
     addTreatment("Control", true);
     addTreatment("Treatment A", false);
     addTreatment("Treatment B", false);
@@ -170,14 +167,12 @@
     } else if (field === "role") {
       const newRole = target.value;
       if (newRole === "control") {
-        // Ensure only one control
         state.treatments.forEach((row, idx) => {
           row.isControl = idx === rowIndex;
         });
       } else {
         t.isControl = false;
         if (!state.treatments.some((row) => row.isControl)) {
-          // Keep at least first row as control if user unsets all
           state.treatments[0].isControl = true;
         }
       }
@@ -200,12 +195,10 @@
     const rowIndex = parseInt(btn.getAttribute("data-row-index"), 10);
     if (Number.isNaN(rowIndex) || !state.treatments[rowIndex]) return;
 
-    // Do not allow removing the only control row
     const isControl = state.treatments[rowIndex].isControl;
     if (isControl) {
       const otherControls = state.treatments.filter((t) => t.isControl);
       if (otherControls.length === 1 && state.treatments.length > 1) {
-        // Try to move control flag to next row instead of blocking removal
         state.treatments.splice(rowIndex, 1);
         if (state.treatments.length > 0) {
           state.treatments[0].isControl = true;
@@ -237,7 +230,6 @@
       panel.classList.toggle("active", id === tabName);
     });
 
-    // Keep Excel export and AI prompt current when visiting those tabs
     if (tabName === "excel") {
       updateExcelExport();
     } else if (tabName === "ai-helper") {
@@ -436,7 +428,8 @@
       parts.push(`<p><strong>Notes:</strong> ${escapeHtml(state.notes)}</p>`);
     }
 
-    dom.snapshotContext.innerHTML = parts.join("") || "<p class=\"muted\">Add farm name, time horizon, discount rate, and notes on the Inputs tab.</p>";
+    dom.snapshotContext.innerHTML =
+      parts.join("") || "<p class=\"muted\">Add farm name, time horizon, discount rate, and notes on the Inputs tab.</p>";
   }
 
   function updateSnapshot() {
@@ -446,7 +439,6 @@
     const { treatments } = computed;
     const currency = state.currency || "AUD";
 
-    // Headline section
     const nonControl = treatments.filter((t) => !t.isControl && t.valid);
     const control = computed.control;
 
@@ -492,7 +484,6 @@
 
     dom.snapshotHeadline.innerHTML = headlineHtml;
 
-    // Table
     const rows = treatments.map((t) => {
       return `
         <tr>
@@ -577,7 +568,7 @@
     try {
       document.execCommand("copy");
     } catch (e) {
-      // Ignore
+      // ignore
     }
     document.body.removeChild(temp);
   }
@@ -591,7 +582,7 @@
 
     const lines = [];
 
-    lines.push("You are interpreting results from a farm cost–benefit analysis tool called \"Farming CBA Decision Tool 2\".");
+    lines.push('You are interpreting results from a farm cost–benefit analysis tool called "Farming CBA Decision Tool 2".');
     lines.push("Use plain language suitable for a farmer or on-farm manager. Avoid jargon. Focus on what drives results and what could be changed.");
     lines.push("Do not tell the farmer which option to choose and do not apply rigid cut-off rules. Treat this as decision support only.");
     lines.push("");
@@ -742,6 +733,10 @@
       .replace(/'/g, "&#39;");
   }
 
-  // Initialise
-  document.addEventListener("DOMContentLoaded", init);
+  // Ensure init always runs whether DOMContentLoaded already fired or not
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
