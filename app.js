@@ -1,1791 +1,2352 @@
 // app.js
-/* Fully functional Farming CBA Decision Aid (vanilla JS + SheetJS):
-   - Active tabs (Import, Mapping, Assumptions, Results, Cashflows, Sensitivity, Export, Help)
-   - Robust Excel read (auto header detection + dedupe headers)
-   - Flexible mapping for treatment/yield/cost
-   - Per-treatment overrides: adoption, yield multiplier, cost multiplier, cost timing
-   - Full CBA: PV benefits, PV costs, NPV, BCR, ROI, ranking; control included in vertical table
-   - Cashflow tables + simple canvas charts
-   - Sensitivity (one-way) + XLSX export
-   - Clean Excel export (multiple sheets)
-   ASCII-only.
-*/
+// Farming CBA Decision Tool 2
+// Excel-first, schema-validated import; Control vs Treatments comparison; auditable formulas & reconciliation;
+// cost build-up with computed totals; simulations with break-even + scenario sets; AI prompt pack; exports; audit trail.
 
-/* =========================
-   Embedded Lockhart sample
-   ========================= */
-const EMBEDDED_LOCKHART_ROWS = [
-  {"Plot":1,"Rep":1,"Trt":12,"Amendment":"Deep OM (CP1) + liq. Gypsum (CHT)","Practice Change":"Crop 1","Yield t/ha":7.029229293617021,"Protein":23.2,"|":17945.488764568763},
-  {"Plot":2,"Rep":1,"Trt":6,"Amendment":"Deep OM (CP1)","Practice Change":"Crop 1","Yield t/ha":6.539273035489362,"Protein":23.6,"|":24884.884058984914},
-  {"Plot":3,"Rep":1,"Trt":13,"Amendment":"Deep OM (CP1) + liq. Gypsum (CHT)+PAM","Practice Change":"Crop 1","Yield t/ha":6.54757540287234,"Protein":23.7,"|":18463.88888888889},
-  {"Plot":4,"Rep":1,"Trt":9,"Amendment":"Deep OM (CP1)+PAM","Practice Change":"Crop 1","Yield t/ha":6.37207183687234,"Protein":24.7,"|":1012.5633802816902},
-  {"Plot":5,"Rep":1,"Trt":2,"Amendment":"Gypsum CHT","Practice Change":"Crop 1","Yield t/ha":7.667165176319149,"Protein":23.9,"|":912.1951219512195},
-  {"Plot":6,"Rep":1,"Trt":11,"Amendment":"Lime+Deep OM+Gypsum CHT+PAM","Practice Change":"Crop 1","Yield t/ha":7.199593337872341,"Protein":23.3,"|":976.8292682926829},
-  {"Plot":7,"Rep":1,"Trt":5,"Amendment":"Lime +Deep OM (CP1)","Practice Change":"Crop 1","Yield t/ha":6.614808249489362,"Protein":23.4,"|":1033.6585365853657},
-  {"Plot":8,"Rep":1,"Trt":15,"Amendment":"Liquid Gypsum (CHT)+PAM","Practice Change":"Crop 1","Yield t/ha":6.958392845957447,"Protein":23.1,"|":782.9268292682927},
-  {"Plot":9,"Rep":1,"Trt":10,"Amendment":"Lime+Deep OM+Gypsum CHT","Practice Change":"Crop 1","Yield t/ha":7.280082541361702,"Protein":23.7,"|":1059.349593495935},
-  {"Plot":10,"Rep":1,"Trt":4,"Amendment":"Lime + Gypsum CHT","Practice Change":"Crop 1","Yield t/ha":7.839204480808511,"Protein":23.8,"|":908.9430894308944},
-  {"Plot":11,"Rep":1,"Trt":1,"Amendment":"Lime only","Practice Change":"Crop 1","Yield t/ha":7.142857142857143,"Protein":23.3,"|":790.650406504065},
-  {"Plot":12,"Rep":1,"Trt":14,"Amendment":"Liquid Gypsum (CHT)","Practice Change":"Crop 1","Yield t/ha":7.421177186276596,"Protein":23.4,"|":748.780487804878},
-  {"Plot":13,"Rep":1,"Trt":7,"Amendment":"Lime+Deep OM (CP1)+PAM","Practice Change":"Crop 1","Yield t/ha":6.35011252212766,"Protein":23.7,"|":1024.5934959349595},
-  {"Plot":14,"Rep":1,"Trt":3,"Amendment":"Lime + Gypsum CHT+PAM","Practice Change":"Crop 1","Yield t/ha":7.35667234112766,"Protein":23.2,"|":923.1707317073171},
-  {"Plot":15,"Rep":1,"Trt":8,"Amendment":"Lime+Gypsum CHT+Deep OM (CP1)+PAM","Practice Change":"Crop 1","Yield t/ha":6.269241385957447,"Protein":23.9,"|":1062.439024390244},
-  {"Plot":16,"Rep":1,"Trt":0,"Amendment":"Control","Practice Change":"Crop 1","Yield t/ha":7.626622926382979,"Protein":23.5,"|":694.6341463414634},
+(() => {
+  "use strict";
 
-  {"Plot":17,"Rep":2,"Trt":10,"Amendment":"Lime+Deep OM+Gypsum CHT","Practice Change":"Crop 1","Yield t/ha":8.16927218306383,"Protein":23.5,"|":1059.349593495935},
-  {"Plot":18,"Rep":2,"Trt":14,"Amendment":"Liquid Gypsum (CHT)","Practice Change":"Crop 1","Yield t/ha":7.467401828978723,"Protein":23.3,"|":748.780487804878},
-  {"Plot":19,"Rep":2,"Trt":3,"Amendment":"Lime + Gypsum CHT+PAM","Practice Change":"Crop 1","Yield t/ha":7.751529506382978,"Protein":23.1,"|":923.1707317073171},
-  {"Plot":20,"Rep":2,"Trt":7,"Amendment":"Lime+Deep OM (CP1)+PAM","Practice Change":"Crop 1","Yield t/ha":6.771685019574468,"Protein":23.7,"|":1024.5934959349595},
-  {"Plot":21,"Rep":2,"Trt":11,"Amendment":"Lime+Deep OM+Gypsum CHT+PAM","Practice Change":"Crop 1","Yield t/ha":7.373296617021276,"Protein":23.5,"|":976.8292682926829},
-  {"Plot":22,"Rep":2,"Trt":4,"Amendment":"Lime + Gypsum CHT","Practice Change":"Crop 1","Yield t/ha":7.794740369574468,"Protein":23.4,"|":908.9430894308944},
-  {"Plot":23,"Rep":2,"Trt":1,"Amendment":"Lime only","Practice Change":"Crop 1","Yield t/ha":7.830657711489362,"Protein":23.2,"|":790.650406504065},
-  {"Plot":24,"Rep":2,"Trt":5,"Amendment":"Lime +Deep OM (CP1)","Practice Change":"Crop 1","Yield t/ha":7.082754630638297,"Protein":23.3,"|":1033.6585365853657},
-  {"Plot":25,"Rep":2,"Trt":8,"Amendment":"Lime+Gypsum CHT+Deep OM (CP1)+PAM","Practice Change":"Crop 1","Yield t/ha":6.722016223404255,"Protein":23.6,"|":1062.439024390244},
-  {"Plot":26,"Rep":2,"Trt":2,"Amendment":"Gypsum CHT","Practice Change":"Crop 1","Yield t/ha":7.417663186382979,"Protein":23.2,"|":912.1951219512195},
-  {"Plot":27,"Rep":2,"Trt":15,"Amendment":"Liquid Gypsum (CHT)+PAM","Practice Change":"Crop 1","Yield t/ha":7.268999694468085,"Protein":23.1,"|":782.9268292682927},
-  {"Plot":28,"Rep":2,"Trt":9,"Amendment":"Deep OM (CP1)+PAM","Practice Change":"Crop 1","Yield t/ha":6.640707778085106,"Protein":23.5,"|":1012.5633802816902},
-  {"Plot":29,"Rep":2,"Trt":13,"Amendment":"Deep OM (CP1) + liq. Gypsum (CHT)+PAM","Practice Change":"Crop 1","Yield t/ha":6.601502030425532,"Protein":23.1,"|":18463.88888888889},
-  {"Plot":30,"Rep":2,"Trt":6,"Amendment":"Deep OM (CP1)","Practice Change":"Crop 1","Yield t/ha":6.842683569361702,"Protein":23.5,"|":17787.777777777777},
-  {"Plot":31,"Rep":2,"Trt":12,"Amendment":"Deep OM (CP1) + liq. Gypsum (CHT)","Practice Change":"Crop 1","Yield t/ha":7.006188607446808,"Protein":23.2,"|":17848.538011695906},
-  {"Plot":32,"Rep":2,"Trt":0,"Amendment":"Control","Practice Change":"Crop 1","Yield t/ha":7.482897900425532,"Protein":23.2,"|":694.6341463414634},
+  const TOOL_VERSION = "2.0.0";
+  const STORAGE_KEYS = {
+    lastUpload: "farming_cba2_last_successful_upload_v1",
+    scenarios: "farming_cba2_saved_scenarios_v1",
+    audit: "farming_cba2_audit_v1",
+    printMode: "farming_cba2_print_mode_v1"
+  };
 
-  {"Plot":33,"Rep":3,"Trt":7,"Amendment":"Lime+Deep OM (CP1)+PAM","Practice Change":"Crop 1","Yield t/ha":6.322008111702128,"Protein":23.4,"|":1024.5934959349595},
-  {"Plot":34,"Rep":3,"Trt":3,"Amendment":"Lime + Gypsum CHT+PAM","Practice Change":"Crop 1","Yield t/ha":7.048594062978723,"Protein":23.5,"|":923.1707317073171},
-  {"Plot":35,"Rep":3,"Trt":1,"Amendment":"Lime only","Practice Change":"Crop 1","Yield t/ha":7.468294498723404,"Protein":23.5,"|":790.650406504065},
-  {"Plot":36,"Rep":3,"Trt":14,"Amendment":"Liquid Gypsum (CHT)","Practice Change":"Crop 1","Yield t/ha":7.208078594468085,"Protein":23.5,"|":748.780487804878},
-  {"Plot":37,"Rep":3,"Trt":10,"Amendment":"Lime+Deep OM+Gypsum CHT","Practice Change":"Crop 1","Yield t/ha":7.82302918893617,"Protein":23.5,"|":1059.349593495935},
-  {"Plot":38,"Rep":3,"Trt":5,"Amendment":"Lime +Deep OM (CP1)","Practice Change":"Crop 1","Yield t/ha":6.866323363404255,"Protein":23.7,"|":1033.6585365853657},
-  {"Plot":39,"Rep":3,"Trt":11,"Amendment":"Lime+Deep OM+Gypsum CHT+PAM","Practice Change":"Crop 1","Yield t/ha":7.176539666595744,"Protein":23.4,"|":976.8292682926829},
-  {"Plot":40,"Rep":3,"Trt":15,"Amendment":"Liquid Gypsum (CHT)+PAM","Practice Change":"Crop 1","Yield t/ha":7.064219107659574,"Protein":23.4,"|":782.9268292682927},
-  {"Plot":41,"Rep":3,"Trt":12,"Amendment":"Deep OM (CP1) + liq. Gypsum (CHT)","Practice Change":"Crop 1","Yield t/ha":6.519162115744681,"Protein":23.4,"|":17945.488764568763},
-  {"Plot":42,"Rep":3,"Trt":8,"Amendment":"Lime+Gypsum CHT+Deep OM (CP1)+PAM","Practice Change":"Crop 1","Yield t/ha":6.05956678787234,"Protein":23.7,"|":1062.439024390244},
-  {"Plot":43,"Rep":3,"Trt":6,"Amendment":"Deep OM (CP1)","Practice Change":"Crop 1","Yield t/ha":6.396029749361702,"Protein":23.7,"|":17787.777777777777},
-  {"Plot":44,"Rep":3,"Trt":9,"Amendment":"Deep OM (CP1)+PAM","Practice Change":"Crop 1","Yield t/ha":6.268999694468085,"Protein":23.6,"|":1012.5633802816902},
-  {"Plot":45,"Rep":3,"Trt":2,"Amendment":"Gypsum CHT","Practice Change":"Crop 1","Yield t/ha":7.120229763404255,"Protein":23.7,"|":912.1951219512195},
-  {"Plot":46,"Rep":3,"Trt":4,"Amendment":"Lime + Gypsum CHT","Practice Change":"Crop 1","Yield t/ha":7.462494905957446,"Protein":23.4,"|":908.9430894308944},
-  {"Plot":47,"Rep":3,"Trt":13,"Amendment":"Deep OM (CP1) + liq. Gypsum (CHT)+PAM","Practice Change":"Crop 1","Yield t/ha":6.435858070212766,"Protein":23.6,"|":18463.88888888889},
-  {"Plot":48,"Rep":3,"Trt":0,"Amendment":"Control","Practice Change":"Crop 1","Yield t/ha":7.269686206808511,"Protein":23.5,"|":694.6341463414634}
-];
+  // ---------- DOM ----------
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
 
-/* =========================
-   State
-   ========================= */
-const state = {
-  source: null, // {kind:'excel'|'embedded', name:string}
-  raw: [],
-  columns: [],
-  map: {
-    treatment: null,
-    baseline: null,
-    yield: null,
-    cost: null,
-    optional1: null
-  },
-  assumptions: {
-    areaHa: 100,
-    horizonYears: 10,
-    discountRatePct: 7,
-    priceYear1: 450,
-    priceGrowthPct: 0,
-    yieldScale: 1,
-    costScale: 1,
-
-    benefitStartYear: 1,
-    effectDurationYears: 5,
-    decay: "linear", // none|linear|exp
-    halfLifeYears: 2,
-
-    costTimingDefault: "y1_only" // y1_only|y0_only|annual_duration|annual_horizon|split_50_50
-  },
-  // treatmentOverrides[name] = {enabled, adoption, yieldMult, costMult, costTiming}
-  treatmentOverrides: {},
-  ui: {
-    activeTab: "import",
-    rankBy: "npv",
-    view: "whole_farm",
-    cashflowTreatment: null
-  },
-  cache: {
-    trialSummary: null,        // per-treatment means and deltas
-    cbaPerTreatment: null,     // per-treatment cba results + cashflows
-    lastSensitivity: null
-  }
-};
-
-/* =========================
-   DOM helpers
-   ========================= */
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-
-function escapeHtml(s){
-  return String(s ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-function toNum(v){
-  if (v === null || v === undefined) return NaN;
-  if (typeof v === "number") return v;
-  if (typeof v === "string"){
-    const s = v.replace(/[, ]+/g, "").replace(/^\$/,"");
-    const n = Number(s);
-    return Number.isFinite(n) ? n : NaN;
-  }
-  return NaN;
-}
-
-function fmtNumber(x, digits=2){
-  if (x === null || x === undefined || Number.isNaN(x)) return "—";
-  const n = Number(x);
-  if (!Number.isFinite(n)) return "—";
-  return n.toLocaleString(undefined, {maximumFractionDigits: digits, minimumFractionDigits: digits});
-}
-
-function fmtInt(x){
-  if (x === null || x === undefined || Number.isNaN(x)) return "—";
-  const n = Number(x);
-  if (!Number.isFinite(n)) return "—";
-  return n.toLocaleString(undefined, {maximumFractionDigits: 0});
-}
-
-function fmtMoney(x, digits=0){
-  if (x === null || x === undefined || Number.isNaN(x)) return "—";
-  const n = Number(x);
-  if (!Number.isFinite(n)) return "—";
-  const abs = Math.abs(n);
-  const s = abs.toLocaleString(undefined, {minimumFractionDigits: digits, maximumFractionDigits: digits});
-  return (n < 0 ? "-$" : "$") + s;
-}
-
-function toast(msg, ms=2200){
-  const t = $("#toast");
-  const tt = $("#toastText");
-  tt.textContent = msg;
-  t.hidden = false;
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => { t.hidden = true; }, ms);
-}
-
-/* =========================
-   Tabs
-   ========================= */
-function setActiveTab(tab){
-  state.ui.activeTab = tab;
-  $$(".tab").forEach(btn => {
-    const on = btn.dataset.tab === tab;
-    btn.classList.toggle("is-active", on);
-    btn.setAttribute("aria-selected", on ? "true" : "false");
-  });
-  $$(".panel").forEach(p => {
-    const on = p.dataset.panel === tab;
-    p.classList.toggle("is-active", on);
-  });
-}
-
-/* =========================
-   Excel import
-   ========================= */
-function isEmptyCell(v){
-  return v === null || v === undefined || (typeof v === "string" && v.trim() === "");
-}
-
-function densestRowIndex(rows2d, maxScan=60){
-  const lim = Math.min(rows2d.length, maxScan);
-  let best = {idx: 0, score: -1};
-  for (let i=0; i<lim; i++){
-    const row = rows2d[i] || [];
-    const score = row.reduce((acc, v) => acc + (isEmptyCell(v) ? 0 : 1), 0);
-    if (score > best.score){
-      best = {idx: i, score};
-    }
-  }
-  return best.idx;
-}
-
-function dedupeHeaders(headers){
-  const seen = new Map();
-  return headers.map(h => {
-    const name = (h === null || h === undefined) ? "" : String(h).trim();
-    const base = name === "" ? "col" : name;
-    const count = seen.get(base) || 0;
-    seen.set(base, count + 1);
-    return count === 0 ? base : `${base}__${count}`;
-  });
-}
-
-function sheetToRows2D(wb){
-  const firstSheet = wb.SheetNames[0];
-  const ws = wb.Sheets[firstSheet];
-  return XLSX.utils.sheet_to_json(ws, {header: 1, raw: true, defval: null});
-}
-
-function rows2DToObjects(rows2d){
-  const headerIdx = densestRowIndex(rows2d, 60);
-  const headersRaw = rows2d[headerIdx] || [];
-  const headers = dedupeHeaders(headersRaw);
-
-  const out = [];
-  for (let r=headerIdx+1; r<rows2d.length; r++){
-    const row = rows2d[r] || [];
-    const nonEmpty = row.reduce((acc,v)=>acc + (isEmptyCell(v)?0:1), 0);
-    if (nonEmpty === 0) continue;
-
-    const obj = {};
-    for (let c=0; c<headers.length; c++){
-      obj[headers[c]] = (c < row.length) ? row[c] : null;
-    }
-
-    // Drop very sparse/footer-ish rows
-    const filled = Object.values(obj).reduce((acc,v)=>acc + (isEmptyCell(v)?0:1), 0);
-    if (filled < Math.max(3, Math.floor(headers.length*0.03))) continue;
-
-    out.push(obj);
+  // ---------- UX ----------
+  function showToast(message) {
+    const root = $("#toast-root") || document.body;
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.textContent = message;
+    root.appendChild(toast);
+    void toast.offsetWidth;
+    toast.classList.add("show");
+    setTimeout(() => {
+      toast.classList.remove("show");
+      setTimeout(() => toast.remove(), 180);
+    }, 3200);
   }
 
-  return {rows: out, columns: headers};
-}
-
-function unique(arr){
-  const s = new Set(arr);
-  return Array.from(s);
-}
-
-function detectDefaultMappings(rows, columns){
-  const cols = columns || (rows[0] ? Object.keys(rows[0]) : []);
-
-  // treatment: prefer Amendment, then Treatment/Trt
-  const treatmentKey =
-    (cols.includes("Amendment") ? "Amendment" : null) ||
-    (cols.includes("Treatment") ? "Treatment" : null) ||
-    (cols.includes("Trt") ? "Trt" : null) ||
-    (cols.find(c => /treat|amend/i.test(c)) || null);
-
-  // yield: prefer "Yield t/ha", else first starting with Yield
-  let yieldKey = null;
-  if (cols.includes("Yield t/ha")) yieldKey = "Yield t/ha";
-  else yieldKey = cols.find(c => /^yield\b/i.test(c)) || null;
-
-  // cost: prefer "|" else cost-like column with broad numeric coverage
-  let costKey = cols.includes("|") ? "|" : null;
-  if (!costKey){
-    const candidates = cols.filter(c => /cost|\$|\/ha|per ha|ha\b/i.test(c));
-    const scored = candidates.map(c => {
-      const nums = rows.map(r => toNum(r[c])).filter(v => Number.isFinite(v));
-      const coverage = nums.length / Math.max(1, rows.length);
-      const p50 = nums.length ? percentile(nums, 50) : -Infinity;
-      return {c, coverage, p50};
-    }).filter(x => x.coverage >= 0.5);
-    scored.sort((a,b) => (b.p50 - a.p50) || (b.coverage - a.coverage));
-    costKey = scored[0]?.c || null;
+  function esc(s) {
+    return (s ?? "")
+      .toString()
+      .replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  // optional: Protein if exists
-  const optional1 =
-    (cols.includes("Protein") ? "Protein" : null) ||
-    (cols.find(c => /protein|quality/i.test(c)) || null);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const isFiniteNum = v => Number.isFinite(v) && !Number.isNaN(v);
 
-  // baseline: prefer "Control" treatment label
-  let baseline = null;
-  if (treatmentKey){
-    const groups = unique(rows.map(r => String(r[treatmentKey] ?? "").trim()).filter(Boolean));
-    baseline = groups.find(g => g.toLowerCase() === "control") || groups[0] || null;
+  function fmt(n, digits = 2) {
+    if (!isFiniteNum(n)) return "n/a";
+    return n.toLocaleString(undefined, { maximumFractionDigits: digits });
+  }
+  function money(n) {
+    if (!isFiniteNum(n)) return "n/a";
+    const abs = Math.abs(n);
+    const digits = abs >= 1000 ? 0 : 2;
+    return "$" + n.toLocaleString(undefined, { maximumFractionDigits: digits });
+  }
+  function percent(n) {
+    if (!isFiniteNum(n)) return "n/a";
+    return fmt(n, 2) + "%";
   }
 
-  return {treatmentKey, yieldKey, costKey, optional1, baseline};
-}
-
-function percentile(arr, p){
-  if (!arr.length) return NaN;
-  const a = arr.slice().sort((x,y)=>x-y);
-  const idx = (p/100)*(a.length-1);
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  if (lo === hi) return a[lo];
-  const t = idx - lo;
-  return a[lo]*(1-t) + a[hi]*t;
-}
-
-async function importExcelArrayBuffer(buf, name="workbook.xlsx"){
-  if (!window.XLSX) throw new Error("XLSX library missing. Check index.html include.");
-  const wb = XLSX.read(buf, {type:"array"});
-  const rows2d = sheetToRows2D(wb);
-  const {rows, columns} = rows2DToObjects(rows2d);
-
-  state.raw = rows;
-  state.columns = columns;
-  state.source = {kind:"excel", name};
-
-  const d = detectDefaultMappings(rows, columns);
-  state.map.treatment = d.treatmentKey;
-  state.map.yield = d.yieldKey;
-  state.map.cost = d.costKey;
-  state.map.optional1 = d.optional1;
-  state.map.baseline = d.baseline;
-
-  initTreatmentOverrides(); // create defaults for each treatment
-  invalidateCache();
-  toast(`Imported: ${name}`);
-  renderAll();
-}
-
-function loadEmbedded(){
-  state.raw = EMBEDDED_LOCKHART_ROWS.map(r => ({...r}));
-  state.columns = dedupeHeaders(Object.keys(state.raw[0] || {}));
-  state.source = {kind:"embedded", name:"Lockhart (embedded sample)"};
-
-  const d = detectDefaultMappings(state.raw, state.columns);
-  state.map.treatment = d.treatmentKey;
-  state.map.yield = d.yieldKey;
-  state.map.cost = d.costKey;
-  state.map.optional1 = d.optional1;
-  state.map.baseline = d.baseline;
-
-  initTreatmentOverrides();
-  invalidateCache();
-  toast("Loaded embedded sample");
-  renderAll();
-}
-
-async function tryLoadBundled(){
-  const candidates = ["./data.xlsx", "./Data for Lockhart-FA-031225 (1).xlsx"];
-  for (const url of candidates){
-    try{
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const buf = await res.arrayBuffer();
-      await importExcelArrayBuffer(buf, url.split("/").pop());
-      return true;
-    } catch(e){
-      // keep trying
-    }
-  }
-  return false;
-}
-
-/* =========================
-   Treatment overrides
-   ========================= */
-function initTreatmentOverrides(){
-  state.treatmentOverrides = {};
-  const tkey = state.map.treatment;
-  if (!tkey || !state.raw.length) return;
-
-  const names = unique(state.raw.map(r => String(r[tkey] ?? "").trim()).filter(Boolean)).sort((a,b)=>a.localeCompare(b));
-  for (const n of names){
-    state.treatmentOverrides[n] = {
-      enabled: true,
-      adoption: 1,      // 0..1
-      yieldMult: 1,     // multiplier on incremental yield
-      costMult: 1,      // multiplier on incremental cost
-      costTiming: "default" // default|y1_only|y0_only|annual_duration|annual_horizon|split_50_50
+  // ---------- AUDIT ----------
+  let auditLog = [];
+  function audit(action, details) {
+    const item = {
+      ts: new Date().toISOString(),
+      action: String(action || "").slice(0, 120),
+      details: String(details || "").slice(0, 500)
     };
-  }
-  // Ensure baseline enabled + adoption=1 by default
-  if (state.map.baseline && state.treatmentOverrides[state.map.baseline]){
-    state.treatmentOverrides[state.map.baseline].enabled = true;
-    state.treatmentOverrides[state.map.baseline].adoption = 1;
-  }
-}
-
-function invalidateCache(){
-  state.cache.trialSummary = null;
-  state.cache.cbaPerTreatment = null;
-  // sensitivity cache kept until overwritten
-}
-
-/* =========================
-   Core computations
-   ========================= */
-function mean(arr){
-  const xs = (arr || []).filter(v => Number.isFinite(v));
-  if (!xs.length) return NaN;
-  return xs.reduce((a,b)=>a+b,0)/xs.length;
-}
-
-function getTreatmentNames(){
-  const tkey = state.map.treatment;
-  if (!tkey || !state.raw.length) return [];
-  return unique(state.raw.map(r => String(r[tkey] ?? "").trim()).filter(Boolean)).sort((a,b)=>a.localeCompare(b));
-}
-
-function buildTrialSummary(){
-  if (state.cache.trialSummary) return state.cache.trialSummary;
-
-  const rows = state.raw;
-  const tkey = state.map.treatment;
-  const ykey = state.map.yield;
-  const ckey = state.map.cost;
-  if (!rows.length || !tkey || !ykey || !ckey) return [];
-
-  const yScale = Number(state.assumptions.yieldScale) || 1;
-  const cScale = Number(state.assumptions.costScale) || 1;
-
-  const buckets = new Map();
-  for (const r of rows){
-    const name = String(r[tkey] ?? "").trim();
-    if (!name) continue;
-    const y = toNum(r[ykey]) * yScale;
-    const c = toNum(r[ckey]) * cScale;
-    if (!buckets.has(name)) buckets.set(name, {name, n:0, yields:[], costs:[]});
-    const b = buckets.get(name);
-    b.n += 1;
-    if (Number.isFinite(y)) b.yields.push(y);
-    if (Number.isFinite(c)) b.costs.push(c);
+    auditLog.unshift(item);
+    auditLog = auditLog.slice(0, 500);
+    try {
+      localStorage.setItem(STORAGE_KEYS.audit, JSON.stringify(auditLog));
+    } catch {}
+    renderAudit();
   }
 
-  const out = [];
-  for (const b of buckets.values()){
-    out.push({
-      name: b.name,
-      n: b.n,
-      yield_mean: mean(b.yields),
-      cost_mean: mean(b.costs)
-    });
-  }
-  out.sort((a,b)=>a.name.localeCompare(b.name));
-
-  const baseName = state.map.baseline;
-  const base = out.find(x => x.name === baseName) || null;
-
-  for (const r of out){
-    r.delta_yield = base ? (r.yield_mean - base.yield_mean) : NaN;
-    r.delta_cost  = base ? (r.cost_mean  - base.cost_mean)  : NaN;
-  }
-
-  state.cache.trialSummary = out;
-  return out;
-}
-
-function priceForYear(year){
-  // year starts at 1..T
-  const p1 = Number(state.assumptions.priceYear1) || 0;
-  const g = (Number(state.assumptions.priceGrowthPct) || 0) / 100;
-  return p1 * Math.pow(1 + g, Math.max(0, year - 1));
-}
-
-function discountFactor(t){
-  // t in years from 0
-  const r = (Number(state.assumptions.discountRatePct) || 0) / 100;
-  return 1 / Math.pow(1 + r, t);
-}
-
-function benefitFactorByYear(year){
-  // year is 1..T
-  const start = Math.max(1, Math.floor(Number(state.assumptions.benefitStartYear) || 1));
-  const D = Math.max(1, Math.floor(Number(state.assumptions.effectDurationYears) || 1));
-  const decay = state.assumptions.decay || "linear";
-
-  const idx = year - start; // 0 at start year
-  if (idx < 0) return 0;
-  if (idx >= D) return 0;
-
-  if (decay === "none") return 1;
-
-  if (decay === "linear"){
-    // 1 at start, to ~0 at end of duration
-    if (D === 1) return 1;
-    return Math.max(0, 1 - (idx / (D - 1)));
-  }
-
-  if (decay === "exp"){
-    const hl = Math.max(0.1, Number(state.assumptions.halfLifeYears) || 2);
-    const lambda = Math.log(2) / hl;
-    return Math.exp(-lambda * idx);
-  }
-
-  return 1;
-}
-
-function resolveCostTiming(name){
-  const ov = state.treatmentOverrides[name];
-  if (!ov) return state.assumptions.costTimingDefault;
-  const ct = ov.costTiming || "default";
-  if (ct === "default") return state.assumptions.costTimingDefault;
-  return ct;
-}
-
-function buildCashflowsForTreatment(treatmentName){
-  const summary = buildTrialSummary();
-  const baseName = state.map.baseline;
-  const base = summary.find(x => x.name === baseName);
-  const tr = summary.find(x => x.name === treatmentName);
-  if (!base || !tr) return null;
-
-  const ov = state.treatmentOverrides[treatmentName] || {enabled:true, adoption:1, yieldMult:1, costMult:1};
-  const enabled = !!ov.enabled;
-  const adoption = clamp01(Number(ov.adoption));
-  const yMult = Number(ov.yieldMult) || 1;
-  const cMult = Number(ov.costMult) || 1;
-
-  const area = Number(state.assumptions.areaHa) || 0;
-  const T = Math.max(1, Math.floor(Number(state.assumptions.horizonYears) || 1));
-
-  // Incremental deltas (per ha) vs baseline
-  const dy_perha = (tr.delta_yield || 0) * yMult;
-  const dc_perha = (tr.delta_cost  || 0) * cMult;
-
-  // Scale to whole farm via adoption + area
-  const scale = (state.ui.view === "per_ha") ? 1 : (area * adoption);
-
-  // benefits start in year 1..T (year0 has no yield benefit)
-  const benefits = Array(T+1).fill(0); // index = year, year 0..T
-  const costs = Array(T+1).fill(0);
-
-  for (let y=1; y<=T; y++){
-    const bf = benefitFactorByYear(y);
-    const p = priceForYear(y);
-    const b = dy_perha * p * bf;
-    benefits[y] = b * scale;
-  }
-
-  // Cost timing options apply to incremental cost stream
-  const timing = resolveCostTiming(treatmentName);
-
-  if (timing === "y1_only"){
-    costs[1] = dc_perha * scale;
-  } else if (timing === "y0_only"){
-    costs[0] = dc_perha * scale;
-  } else if (timing === "annual_duration"){
-    const start = 1; // apply costs from year1
-    for (let y=1; y<=T; y++){
-      const bf = benefitFactorByYear(y);
-      if (bf > 0) costs[y] = dc_perha * scale;
-    }
-  } else if (timing === "annual_horizon"){
-    for (let y=1; y<=T; y++){
-      costs[y] = dc_perha * scale;
-    }
-  } else if (timing === "split_50_50"){
-    costs[0] = 0.5 * dc_perha * scale;
-    costs[1] += 0.5 * dc_perha * scale;
-  } else {
-    // fallback
-    costs[1] = dc_perha * scale;
-  }
-
-  // If disabled, set adoption to 0 effectually (for whole-farm view); per-ha view still shows per-ha
-  if (!enabled && state.ui.view !== "per_ha"){
-    for (let y=0; y<=T; y++){
-      benefits[y] = 0;
-      costs[y] = 0;
+  function loadAudit() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.audit);
+      if (raw) auditLog = JSON.parse(raw) || [];
+    } catch {
+      auditLog = [];
     }
   }
 
-  const net = benefits.map((b,i)=>b - costs[i]);
-
-  // PV
-  let pvB = 0, pvC = 0, npv = 0;
-  for (let t=0; t<=T; t++){
-    const df = discountFactor(t);
-    pvB += benefits[t]*df;
-    pvC += costs[t]*df;
-    npv += net[t]*df;
-  }
-  const bcr = (pvC === 0) ? (pvB === 0 ? NaN : Infinity) : (pvB / pvC);
-  const roi = (pvC === 0) ? NaN : (npv / pvC);
-
-  return {
-    name: treatmentName,
-    baseline: baseName,
-    enabled: enabled,
-    adoption: adoption,
-    yieldMult: yMult,
-    costMult: cMult,
-    timing: timing,
-    dy_perha: dy_perha,
-    dc_perha: dc_perha,
-    benefits,
-    costs,
-    net,
-    pvBenefits: pvB,
-    pvCosts: pvC,
-    npv: npv,
-    bcr: bcr,
-    roi: roi
-  };
-}
-
-function clamp01(x){
-  if (!Number.isFinite(x)) return 0;
-  return Math.max(0, Math.min(1, x));
-}
-
-function buildCbaAllTreatments(){
-  if (state.cache.cbaPerTreatment) return state.cache.cbaPerTreatment;
-
-  const names = getTreatmentNames();
-  const base = state.map.baseline;
-  if (!base || !names.length) return [];
-
-  // Ensure baseline exists
-  const ordered = [base, ...names.filter(n => n !== base)];
-  const out = [];
-  for (const n of ordered){
-    const cf = buildCashflowsForTreatment(n);
-    if (cf) out.push(cf);
-  }
-  state.cache.cbaPerTreatment = out;
-  return out;
-}
-
-/* =========================
-   Rendering
-   ========================= */
-function renderAll(){
-  renderDatasetPill();
-  renderImportKPIs();
-  renderColumns();
-  renderPreviewTable();
-
-  renderMappingSelectors();
-  renderTreatmentsConfigTable();
-
-  renderAssumptionsControls();
-  renderSanity();
-
-  renderResults();
-  renderCashflows();
-  renderSensitivity(); // last-run display if present
-  renderHalfLifeVisibility();
-}
-
-function renderDatasetPill(){
-  const pill = $("#datasetPill");
-  if (!state.raw.length){
-    pill.textContent = "No data loaded";
-    pill.style.borderColor = "rgba(255,255,255,0.12)";
-    return;
-  }
-  const src = state.source?.name || "Dataset";
-  pill.textContent = `${src} · ${state.raw.length} rows`;
-  pill.style.borderColor = "rgba(125,211,252,0.35)";
-}
-
-function renderImportKPIs(){
-  $("#kpiRows").textContent = fmtInt(state.raw.length);
-  const tkey = state.map.treatment;
-  const treatments = tkey ? getTreatmentNames() : [];
-  $("#kpiTreatments").textContent = fmtInt(treatments.length);
-  $("#kpiBaseline").textContent = state.map.baseline || "—";
-  $("#kpiKeys").textContent = (state.map.yield && state.map.cost) ? `${state.map.yield} | ${state.map.cost}` : "—";
-}
-
-function renderColumns(){
-  const box = $("#columnsChips");
-  box.innerHTML = "";
-  if (!state.columns.length){
-    box.innerHTML = `<div class="muted">No columns yet.</div>`;
-    return;
-  }
-  const frag = document.createDocumentFragment();
-  for (const c of state.columns){
-    const d = document.createElement("div");
-    d.className = "chip";
-    d.textContent = c;
-    frag.appendChild(d);
-  }
-  box.appendChild(frag);
-}
-
-function renderPreviewTable(){
-  const wrap = $("#previewTableWrap");
-  const note = $("#previewNote");
-  if (!state.raw.length){
-    note.hidden = false;
-    wrap.hidden = true;
-    wrap.innerHTML = "";
-    return;
-  }
-  note.hidden = true;
-  wrap.hidden = false;
-
-  const cols = (state.columns || Object.keys(state.raw[0] || {})).slice(0, 10);
-  const rows = state.raw.slice(0, 8);
-
-  let html = `<table><thead><tr>`;
-  for (const c of cols) html += `<th>${escapeHtml(c)}</th>`;
-  html += `</tr></thead><tbody>`;
-  for (const r of rows){
-    html += `<tr>`;
-    for (const c of cols){
-      const v = r[c];
-      html += `<td class="${typeof v === "number" ? "mono" : ""}">${escapeHtml(v)}</td>`;
-    }
-    html += `</tr>`;
-  }
-  html += `</tbody></table>`;
-  wrap.innerHTML = html;
-}
-
-function fillSelect(sel, options, value, allowEmpty=false, emptyLabel="—"){
-  sel.innerHTML = "";
-  if (allowEmpty){
-    const opt0 = document.createElement("option");
-    opt0.value = "";
-    opt0.textContent = emptyLabel;
-    sel.appendChild(opt0);
-  }
-  for (const o of options){
-    const opt = document.createElement("option");
-    opt.value = o;
-    opt.textContent = o;
-    if (o === value) opt.selected = true;
-    sel.appendChild(opt);
-  }
-  sel.disabled = options.length === 0;
-}
-
-function renderMappingSelectors(){
-  const cols = state.columns || [];
-  fillSelect($("#mapTreatment"), cols, state.map.treatment, false);
-  fillSelect($("#mapYield"), cols, state.map.yield, true, "—");
-  fillSelect($("#mapCost"), cols, state.map.cost, true, "—");
-  fillSelect($("#mapOptional1"), cols, state.map.optional1 || "", true, "—");
-
-  const tnames = getTreatmentNames();
-  fillSelect($("#mapBaseline"), tnames, state.map.baseline, false);
-
-  // Also populate cashflow/sensitivity treatment selectors
-  fillSelect($("#cashflowTreatment"), tnames, state.ui.cashflowTreatment || state.map.baseline || "", false);
-  fillSelect($("#sensTreatment"), tnames, $("#sensTreatment").value || state.map.baseline || "", false);
-}
-
-function renderTreatmentsConfigTable(){
-  const wrap = $("#treatmentsConfigWrap");
-  const tnames = getTreatmentNames();
-  if (!tnames.length || !state.map.baseline){
-    wrap.innerHTML = `<div class="muted">Load data and set a treatment mapping first.</div>`;
-    return;
+  function renderAudit() {
+    const tbody = $("#auditTable tbody");
+    if (!tbody) return;
+    tbody.innerHTML = auditLog
+      .map(
+        r => `
+        <tr>
+          <td class="small">${esc(new Date(r.ts).toLocaleString())}</td>
+          <td>${esc(r.action)}</td>
+          <td class="small muted">${esc(r.details)}</td>
+        </tr>`
+      )
+      .join("");
   }
 
-  const costTimingOptions = [
-    {v:"default", label:"Default (from Assumptions)"},
-    {v:"y1_only", label:"Year 1 only"},
-    {v:"y0_only", label:"Year 0 only"},
-    {v:"annual_duration", label:"Annual during effect duration"},
-    {v:"annual_horizon", label:"Annual for full horizon"},
-    {v:"split_50_50", label:"Split 50% Year 0, 50% Year 1"}
+  // ---------- MODEL ----------
+  function uid() {
+    return Math.random().toString(36).slice(2, 10);
+  }
+
+  // Default dataset (one row per treatment; in real uploads, may be replicated plot rows)
+  const DEFAULT_ROWS = [
+    { Amendment: "control", "Yield t/ha": 2.4, "Pre sowing Labour": 40, "Treatment Input Cost Only /Ha": 0 },
+    { Amendment: "deep_om_cp1", "Yield t/ha": 3.1, "Pre sowing Labour": 55, "Treatment Input Cost Only /Ha": 16500 },
+    { Amendment: "deep_om_cp1_plus_liq_gypsum_cht", "Yield t/ha": 3.2, "Pre sowing Labour": 56, "Treatment Input Cost Only /Ha": 16850 },
+    { Amendment: "deep_gypsum", "Yield t/ha": 2.9, "Pre sowing Labour": 50, "Treatment Input Cost Only /Ha": 500 },
+    { Amendment: "deep_om_cp1_plus_pam", "Yield t/ha": 3.0, "Pre sowing Labour": 57, "Treatment Input Cost Only /Ha": 18000 },
+    { Amendment: "deep_om_cp1_plus_ccm", "Yield t/ha": 3.25, "Pre sowing Labour": 58, "Treatment Input Cost Only /Ha": 21225 },
+    { Amendment: "deep_ccm_only", "Yield t/ha": 2.95, "Pre sowing Labour": 52, "Treatment Input Cost Only /Ha": 3225 },
+    { Amendment: "deep_om_cp2_plus_gypsum", "Yield t/ha": 3.3, "Pre sowing Labour": 60, "Treatment Input Cost Only /Ha": 24000 },
+    { Amendment: "deep_liq_gypsum_cht", "Yield t/ha": 2.8, "Pre sowing Labour": 48, "Treatment Input Cost Only /Ha": 350 },
+    { Amendment: "surface_silicon", "Yield t/ha": 2.7, "Pre sowing Labour": 45, "Treatment Input Cost Only /Ha": 1000 },
+    { Amendment: "deep_liq_npks", "Yield t/ha": 3.0, "Pre sowing Labour": 53, "Treatment Input Cost Only /Ha": 2200 },
+    { Amendment: "deep_ripping_only", "Yield t/ha": 2.85, "Pre sowing Labour": 47, "Treatment Input Cost Only /Ha": 0 }
   ];
 
-  let html = `<table>
-    <thead><tr>
-      <th>Treatment</th>
-      <th>Enable</th>
-      <th>Adoption (0-1)</th>
-      <th>Yield mult</th>
-      <th>Cost mult</th>
-      <th>Cost timing</th>
-    </tr></thead>
-    <tbody>`;
-
-  for (const name of tnames){
-    const ov = state.treatmentOverrides[name] || {enabled:true, adoption:1, yieldMult:1, costMult:1, costTiming:"default"};
-    const isBase = name === state.map.baseline;
-    const badge = isBase ? ` <span class="badge">Baseline</span>` : "";
-    html += `<tr>
-      <td>${escapeHtml(name)}${badge}</td>
-      <td class="mono">
-        <input type="checkbox" data-ov="enabled" data-name="${escapeHtml(name)}" ${ov.enabled ? "checked":""} />
-      </td>
-      <td><input class="tinput" type="number" step="0.05" min="0" max="1" data-ov="adoption" data-name="${escapeHtml(name)}" value="${escapeHtml(String(ov.adoption))}" /></td>
-      <td><input class="tinput" type="number" step="0.05" data-ov="yieldMult" data-name="${escapeHtml(name)}" value="${escapeHtml(String(ov.yieldMult))}" /></td>
-      <td><input class="tinput" type="number" step="0.05" data-ov="costMult" data-name="${escapeHtml(name)}" value="${escapeHtml(String(ov.costMult))}" /></td>
-      <td>
-        <select class="tselect" data-ov="costTiming" data-name="${escapeHtml(name)}">
-          ${costTimingOptions.map(o => `<option value="${o.v}" ${o.v===ov.costTiming ? "selected":""}>${escapeHtml(o.label)}</option>`).join("")}
-        </select>
-      </td>
-    </tr>`;
-  }
-
-  html += `</tbody></table>`;
-  wrap.innerHTML = html;
-
-  // Bind events for inline edits
-  wrap.querySelectorAll("input[data-ov], select[data-ov]").forEach(el => {
-    el.addEventListener("change", (e) => {
-      const name = e.target.getAttribute("data-name");
-      const key = e.target.getAttribute("data-ov");
-      if (!state.treatmentOverrides[name]) state.treatmentOverrides[name] = {enabled:true, adoption:1, yieldMult:1, costMult:1, costTiming:"default"};
-
-      if (e.target.type === "checkbox"){
-        state.treatmentOverrides[name][key] = e.target.checked;
-      } else if (key === "costTiming"){
-        state.treatmentOverrides[name][key] = e.target.value;
-      } else {
-        state.treatmentOverrides[name][key] = Number(e.target.value);
-      }
-
-      // Keep baseline enabled
-      if (name === state.map.baseline){
-        state.treatmentOverrides[name].enabled = true;
-      }
-
-      invalidateCache();
-      renderResults();
-      renderCashflows();
-    });
-  });
-}
-
-function renderAssumptionsControls(){
-  $("#assumpArea").value = state.assumptions.areaHa;
-  $("#assumpHorizon").value = state.assumptions.horizonYears;
-  $("#assumpDiscount").value = state.assumptions.discountRatePct;
-  $("#assumpPrice").value = state.assumptions.priceYear1;
-  $("#assumpPriceGrowth").value = state.assumptions.priceGrowthPct;
-  $("#assumpYieldScale").value = String(state.assumptions.yieldScale);
-  $("#assumpCostScale").value = String(state.assumptions.costScale);
-
-  $("#assumpBenefitStart").value = state.assumptions.benefitStartYear;
-  $("#assumpDuration").value = state.assumptions.effectDurationYears;
-  $("#assumpDecay").value = state.assumptions.decay;
-  $("#assumpHalfLife").value = state.assumptions.halfLifeYears;
-  $("#assumpCostTimingDefault").value = state.assumptions.costTimingDefault;
-}
-
-function renderHalfLifeVisibility(){
-  const decay = state.assumptions.decay;
-  $("#halfLifeRow").hidden = decay !== "exp";
-}
-
-function renderSanity(){
-  const box = $("#sanityBox");
-  if (!state.raw.length || !state.map.yield || !state.map.cost){
-    box.innerHTML = `<div class="muted">Load data and set yield/cost mapping to see diagnostics.</div>`;
-    return;
-  }
-
-  const yScale = Number(state.assumptions.yieldScale) || 1;
-  const cScale = Number(state.assumptions.costScale) || 1;
-
-  const ys = state.raw.map(r => toNum(r[state.map.yield]) * yScale).filter(Number.isFinite);
-  const cs = state.raw.map(r => toNum(r[state.map.cost]) * cScale).filter(Number.isFinite);
-
-  const yP50 = percentile(ys, 50), yP5 = percentile(ys, 5), yP95 = percentile(ys, 95);
-  const cP50 = percentile(cs, 50), cP5 = percentile(cs, 5), cP95 = percentile(cs, 95);
-
-  const warnings = [];
-  if (!Number.isFinite(yP50) || yP50 <= 0) warnings.push("Yield median is non-positive; check yield mapping/scaling.");
-  if (!Number.isFinite(cP50)) warnings.push("Cost median invalid; check cost mapping/scaling.");
-  if (Number.isFinite(yP95) && yP95 > 50) warnings.push("Yield P95 looks very high for t/ha; consider yield scale.");
-  if (Number.isFinite(cP95) && cP95 > 100000) warnings.push("Cost P95 looks extremely high; confirm the cost column is correct.");
-
-  const warnHtml = warnings.length ? `
-    <div class="sanity-item">
-      <div class="sanity-item__title">Warnings</div>
-      <div class="sanity-item__text">${warnings.map(w => `• ${escapeHtml(w)}`).join("<br>")}</div>
-    </div>` : "";
-
-  box.innerHTML = `
-    <div class="sanity-item">
-      <div class="sanity-item__title">Detected mapping</div>
-      <div class="sanity-item__text">
-        Treatment: <code>${escapeHtml(state.map.treatment || "—")}</code><br>
-        Baseline: <code>${escapeHtml(state.map.baseline || "—")}</code><br>
-        Yield: <code>${escapeHtml(state.map.yield || "—")}</code><br>
-        Cost: <code>${escapeHtml(state.map.cost || "—")}</code>
-      </div>
-    </div>
-
-    <div class="sanity-item">
-      <div class="sanity-item__title">Yield distribution (scaled)</div>
-      <div class="sanity-item__text">P5=${escapeHtml(fmtNumber(yP5,3))}, P50=${escapeHtml(fmtNumber(yP50,3))}, P95=${escapeHtml(fmtNumber(yP95,3))}</div>
-    </div>
-
-    <div class="sanity-item">
-      <div class="sanity-item__title">Cost distribution (scaled)</div>
-      <div class="sanity-item__text">P5=${escapeHtml(fmtMoney(cP5,0))}, P50=${escapeHtml(fmtMoney(cP50,0))}, P95=${escapeHtml(fmtMoney(cP95,0))}</div>
-    </div>
-
-    ${warnHtml}
-  `;
-}
-
-function renderTrialSummary(){
-  const wrap = $("#trialSummaryWrap");
-  const sum = buildTrialSummary();
-  if (!sum.length){
-    wrap.innerHTML = `<div class="muted">Load data and confirm mappings.</div>`;
-    return;
-  }
-
-  let html = `<table>
-    <thead><tr>
-      <th>Treatment</th>
-      <th>N</th>
-      <th>Yield mean (t/ha)</th>
-      <th>Cost mean (/ha)</th>
-      <th>Δ Yield vs baseline</th>
-      <th>Δ Cost vs baseline</th>
-    </tr></thead><tbody>`;
-
-  for (const r of sum){
-    const isBase = r.name === state.map.baseline;
-    const badge = isBase ? ` <span class="badge">Baseline</span>` : "";
-    html += `<tr>
-      <td>${escapeHtml(r.name)}${badge}</td>
-      <td class="mono">${fmtInt(r.n)}</td>
-      <td class="mono">${fmtNumber(r.yield_mean,3)}</td>
-      <td class="mono">${fmtMoney(r.cost_mean,0)}</td>
-      <td class="mono">${fmtNumber(r.delta_yield,3)}</td>
-      <td class="mono">${fmtMoney(r.delta_cost,0)}</td>
-    </tr>`;
-  }
-  html += `</tbody></table>`;
-  wrap.innerHTML = html;
-}
-
-function verticalCbaTable(cbaList){
-  // Indicators as rows, treatments as columns. Control included.
-  const view = state.ui.view; // whole_farm|per_ha
-  const names = cbaList.map(x => x.name);
-
-  const rows = [
-    {label:"PV benefits", key:"pvBenefits"},
-    {label:"PV costs", key:"pvCosts"},
-    {label:"NPV", key:"npv"},
-    {label:"BCR", key:"bcr"},
-    {label:"ROI", key:"roi"},
-    {label:"Rank (by current metric)", key:"rank"}
-  ];
-
-  // compute rank
-  const metric = state.ui.rankBy;
-  const scored = cbaList.map(x => {
-    const v = (metric === "npv") ? x.npv : (metric === "bcr" ? x.bcr : x.roi);
-    return {name:x.name, v};
-  });
-
-  // Rank: highest is 1; handle NaN/Infinity by pushing to end
-  scored.sort((a,b) => {
-    const av = a.v, bv = b.v;
-    const aBad = !Number.isFinite(av);
-    const bBad = !Number.isFinite(bv);
-    if (aBad && bBad) return a.name.localeCompare(b.name);
-    if (aBad) return 1;
-    if (bBad) return -1;
-    return (bv - av);
-  });
-
-  const rankMap = {};
-  for (let i=0; i<scored.length; i++) rankMap[scored[i].name] = i+1;
-
-  let html = `<table><thead><tr><th>Indicator</th>`;
-  for (const n of names){
-    const isBase = n === state.map.baseline;
-    html += `<th>${escapeHtml(n)}${isBase ? "<br><span class='muted'>(baseline)</span>":""}</th>`;
-  }
-  html += `</tr></thead><tbody>`;
-
-  for (const r of rows){
-    html += `<tr><td>${escapeHtml(r.label)}</td>`;
-    for (const t of cbaList){
-      let v = "";
-      if (r.key === "rank"){
-        v = rankMap[t.name] ? String(rankMap[t.name]) : "—";
-      } else if (r.key === "bcr" || r.key === "roi"){
-        v = fmtNumber(t[r.key], 3);
-      } else {
-        v = fmtMoney(t[r.key], 0);
-      }
-      html += `<td class="mono">${escapeHtml(v)}</td>`;
-    }
-    html += `</tr>`;
-  }
-  html += `</tbody></table>`;
-  return html;
-}
-
-function renderResults(){
-  // Guard
-  const cbaWrap = $("#cbaVerticalWrap");
-  const chart = $("#npvChart");
-  if (!cbaWrap || !chart) return;
-
-  if (!state.raw.length || !state.map.treatment || !state.map.baseline || !state.map.yield || !state.map.cost){
-    cbaWrap.innerHTML = `<div class="muted">Load data and confirm mappings (treatment, baseline, yield, cost).</div>`;
-    $("#trialSummaryWrap").innerHTML = "";
-    drawEmpty(chart, "Load data to see NPV chart");
-    return;
-  }
-
-  const cba = buildCbaAllTreatments();
-  if (!cba.length){
-    cbaWrap.innerHTML = `<div class="muted">Could not compute results. Check mappings and assumptions.</div>`;
-    drawEmpty(chart, "No results yet");
-    return;
-  }
-
-  // Render tables
-  cbaWrap.innerHTML = verticalCbaTable(cba);
-  renderTrialSummary();
-
-  // Chart: NPV bars ordered by rank metric
-  drawNpvChart(chart, cba);
-}
-
-function renderCashflows(){
-  const tableWrap = $("#cashflowsTableWrap");
-  const chart = $("#cashflowChart");
-  if (!tableWrap || !chart) return;
-
-  if (!state.raw.length || !state.map.baseline){
-    tableWrap.innerHTML = `<div class="muted">Load data first.</div>`;
-    drawEmpty(chart, "Load data to see cashflows");
-    return;
-  }
-
-  const tnames = getTreatmentNames();
-  if (!tnames.length) return;
-
-  // Choose current
-  const sel = $("#cashflowTreatment");
-  const current = sel.value || state.ui.cashflowTreatment || state.map.baseline;
-  state.ui.cashflowTreatment = current;
-
-  const cf = buildCashflowsForTreatment(current);
-  if (!cf){
-    tableWrap.innerHTML = `<div class="muted">Select a treatment.</div>`;
-    drawEmpty(chart, "No cashflows");
-    return;
-  }
-
-  const T = Math.max(1, Math.floor(Number(state.assumptions.horizonYears) || 1));
-  let html = `<table>
-    <thead><tr>
-      <th>Year</th>
-      <th>Price ($/t)</th>
-      <th>Benefit factor</th>
-      <th>Benefits</th>
-      <th>Costs</th>
-      <th>Net</th>
-      <th>Discount factor</th>
-      <th>PV net</th>
-    </tr></thead><tbody>`;
-
-  for (let y=0; y<=T; y++){
-    const price = (y === 0) ? "—" : fmtNumber(priceForYear(y), 2);
-    const bf = (y === 0) ? "—" : fmtNumber(benefitFactorByYear(y), 3);
-    const df = fmtNumber(discountFactor(y), 4);
-    const pvnet = cf.net[y] * discountFactor(y);
-    html += `<tr>
-      <td class="mono">${y}</td>
-      <td class="mono">${escapeHtml(price)}</td>
-      <td class="mono">${escapeHtml(bf)}</td>
-      <td class="mono">${escapeHtml(fmtMoney(cf.benefits[y],0))}</td>
-      <td class="mono">${escapeHtml(fmtMoney(cf.costs[y],0))}</td>
-      <td class="mono">${escapeHtml(fmtMoney(cf.net[y],0))}</td>
-      <td class="mono">${escapeHtml(df)}</td>
-      <td class="mono">${escapeHtml(fmtMoney(pvnet,0))}</td>
-    </tr>`;
-  }
-  html += `</tbody></table>`;
-  tableWrap.innerHTML = html;
-
-  $("#cfPvBenefits").textContent = fmtMoney(cf.pvBenefits, 0);
-  $("#cfPvCosts").textContent = fmtMoney(cf.pvCosts, 0);
-  $("#cfNpv").textContent = fmtMoney(cf.npv, 0);
-  $("#cfBcr").textContent = Number.isFinite(cf.bcr) ? fmtNumber(cf.bcr, 3) : "—";
-
-  drawCashflowChart(chart, cf);
-}
-
-function renderSensitivity(){
-  const wrap = $("#sensitivityWrap");
-  if (!wrap) return;
-
-  if (!state.cache.lastSensitivity){
-    wrap.innerHTML = `<div class="muted">Run sensitivity to see results.</div>`;
-    return;
-  }
-  wrap.innerHTML = sensitivityTableHtml(state.cache.lastSensitivity);
-}
-
-/* =========================
-   Charts (simple canvas)
-   ========================= */
-function drawEmpty(canvas, msg){
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0,0,w,h);
-  ctx.fillStyle = "rgba(255,255,255,0.72)";
-  ctx.font = "16px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-  ctx.fillText(msg, 16, 28);
-}
-
-function drawNpvChart(canvas, cbaList){
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0,0,w,h);
-
-  // order by rank metric
-  const metric = state.ui.rankBy;
-  const items = cbaList.slice().map(x => {
-    const v = (metric === "npv") ? x.npv : (metric === "bcr" ? x.bcr : x.roi);
-    return {name:x.name, v, npv:x.npv};
-  });
-
-  items.sort((a,b) => {
-    const av = a.v, bv = b.v;
-    const aBad = !Number.isFinite(av);
-    const bBad = !Number.isFinite(bv);
-    if (aBad && bBad) return a.name.localeCompare(b.name);
-    if (aBad) return 1;
-    if (bBad) return -1;
-    return (bv - av);
-  });
-
-  // Use NPV for bars; baseline included
-  const values = items.map(x => x.npv).filter(Number.isFinite);
-  const minV = Math.min(0, ...values);
-  const maxV = Math.max(0, ...values);
-
-  const padL = 50, padR = 10, padT = 18, padB = 90;
-  const plotW = w - padL - padR;
-  const plotH = h - padT - padB;
-
-  // axis
-  ctx.strokeStyle = "rgba(255,255,255,0.18)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(padL, padT);
-  ctx.lineTo(padL, padT + plotH);
-  ctx.lineTo(padL + plotW, padT + plotH);
-  ctx.stroke();
-
-  const n = items.length;
-  const gap = 6;
-  const barW = Math.max(6, (plotW - gap*(n-1)) / n);
-
-  function yScale(v){
-    if (maxV === minV) return padT + plotH/2;
-    return padT + (maxV - v) * (plotH / (maxV - minV));
-  }
-  const y0 = yScale(0);
-
-  // bars
-  for (let i=0; i<n; i++){
-    const x = padL + i*(barW + gap);
-    const v = items[i].npv;
-    const y = yScale(v);
-    const top = Math.min(y, y0);
-    const bh = Math.abs(y0 - y);
-
-    ctx.fillStyle = (items[i].name === state.map.baseline) ? "rgba(167,243,208,0.55)" : "rgba(125,211,252,0.55)";
-    ctx.fillRect(x, top, barW, bh);
-
-    // labels
-    ctx.save();
-    ctx.translate(x + barW/2, padT + plotH + 10);
-    ctx.rotate(-Math.PI/3);
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
-    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas";
-    ctx.textAlign = "right";
-    ctx.fillText(items[i].name.length > 18 ? (items[i].name.slice(0,18)+"…") : items[i].name, 0, 0);
-    ctx.restore();
-  }
-
-  // title
-  ctx.fillStyle = "rgba(255,255,255,0.86)";
-  ctx.font = "14px system-ui, -apple-system, Segoe UI, Roboto";
-  ctx.fillText(`NPV chart (rank by ${metric.toUpperCase()})`, 16, 18);
-}
-
-function drawCashflowChart(canvas, cf){
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0,0,w,h);
-
-  const T = cf.net.length - 1;
-  const values = cf.net.slice(0).filter(Number.isFinite);
-  const minV = Math.min(0, ...values);
-  const maxV = Math.max(0, ...values);
-
-  const padL = 50, padR = 10, padT = 18, padB = 50;
-  const plotW = w - padL - padR;
-  const plotH = h - padT - padB;
-
-  ctx.strokeStyle = "rgba(255,255,255,0.18)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(padL, padT);
-  ctx.lineTo(padL, padT + plotH);
-  ctx.lineTo(padL + plotW, padT + plotH);
-  ctx.stroke();
-
-  function yScale(v){
-    if (maxV === minV) return padT + plotH/2;
-    return padT + (maxV - v) * (plotH / (maxV - minV));
-  }
-  const y0 = yScale(0);
-
-  const n = T + 1;
-  const gap = 6;
-  const barW = Math.max(8, (plotW - gap*(n-1)) / n);
-
-  for (let i=0; i<n; i++){
-    const x = padL + i*(barW + gap);
-    const v = cf.net[i];
-    const y = yScale(v);
-    const top = Math.min(y, y0);
-    const bh = Math.abs(y0 - y);
-
-    ctx.fillStyle = (v >= 0) ? "rgba(167,243,208,0.55)" : "rgba(252,165,165,0.45)";
-    ctx.fillRect(x, top, barW, bh);
-
-    ctx.fillStyle = "rgba(255,255,255,0.70)";
-    ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas";
-    ctx.textAlign = "center";
-    ctx.fillText(String(i), x + barW/2, padT + plotH + 16);
-  }
-
-  ctx.fillStyle = "rgba(255,255,255,0.86)";
-  ctx.font = "14px system-ui, -apple-system, Segoe UI, Roboto";
-  ctx.fillText(`Net cashflow by year: ${cf.name}`, 16, 18);
-}
-
-/* =========================
-   Sensitivity
-   ========================= */
-function computeMetric(cf, metric){
-  if (metric === "npv") return cf.npv;
-  if (metric === "bcr") return cf.bcr;
-  if (metric === "roi") return cf.roi;
-  return cf.npv;
-}
-
-function cloneAssumptions(){
-  return JSON.parse(JSON.stringify(state.assumptions));
-}
-
-function runSensitivity(){
-  const treatment = $("#sensTreatment").value;
-  const metric = $("#sensMetric").value;
-
-  const pricePct = Number($("#sensPricePct").value || 0) / 100;
-  const costPct = Number($("#sensCostPct").value || 0) / 100;
-  const yieldPct = Number($("#sensYieldPct").value || 0) / 100;
-  const discPts = Number($("#sensDiscountPts").value || 0);
-  const durDelta = Math.floor(Number($("#sensDurationDelta").value || 0));
-
-  // base
-  const baseAssump = cloneAssumptions();
-  const baseOv = JSON.parse(JSON.stringify(state.treatmentOverrides));
-
-  function evalWith(modFn){
-    const savedA = state.assumptions;
-    const savedO = state.treatmentOverrides;
-
-    state.assumptions = cloneAssumptions();
-    state.treatmentOverrides = JSON.parse(JSON.stringify(baseOv));
-
-    modFn();
-
-    invalidateCache();
-    const cf = buildCashflowsForTreatment(treatment);
-
-    // restore
-    state.assumptions = savedA;
-    state.treatmentOverrides = savedO;
-    invalidateCache();
-
-    return cf ? computeMetric(cf, metric) : NaN;
-  }
-
-  const baseVal = evalWith(() => {});
-
-  const res = [
-    {
-      driver: "Price",
-      low: evalWith(() => { state.assumptions.priceYear1 = baseAssump.priceYear1 * (1 - pricePct); }),
-      base: baseVal,
-      high: evalWith(() => { state.assumptions.priceYear1 = baseAssump.priceYear1 * (1 + pricePct); })
+  const model = {
+    toolName: "Farming CBA Decision Tool 2",
+    project: {
+      name: "Faba bean soil amendment trial",
+      organisation: "Newcastle Business School, The University of Newcastle",
+      lastUpdated: new Date().toISOString().slice(0, 10)
     },
-    {
-      driver: "Incremental cost multiplier",
-      low: evalWith(() => { state.treatmentOverrides[treatment].costMult = (baseOv[treatment].costMult || 1) * (1 - costPct); }),
-      base: baseVal,
-      high: evalWith(() => { state.treatmentOverrides[treatment].costMult = (baseOv[treatment].costMult || 1) * (1 + costPct); })
-    },
-    {
-      driver: "Incremental yield multiplier",
-      low: evalWith(() => { state.treatmentOverrides[treatment].yieldMult = (baseOv[treatment].yieldMult || 1) * (1 - yieldPct); }),
-      base: baseVal,
-      high: evalWith(() => { state.treatmentOverrides[treatment].yieldMult = (baseOv[treatment].yieldMult || 1) * (1 + yieldPct); })
-    },
-    {
-      driver: "Discount rate",
-      low: evalWith(() => { state.assumptions.discountRatePct = Math.max(0, baseAssump.discountRatePct - discPts); }),
-      base: baseVal,
-      high: evalWith(() => { state.assumptions.discountRatePct = Math.max(0, baseAssump.discountRatePct + discPts); })
-    },
-    {
-      driver: "Effect duration",
-      low: evalWith(() => { state.assumptions.effectDurationYears = Math.max(1, baseAssump.effectDurationYears - durDelta); }),
-      base: baseVal,
-      high: evalWith(() => { state.assumptions.effectDurationYears = Math.max(1, baseAssump.effectDurationYears + durDelta); })
-    }
-  ];
-
-  const payload = {
-    treatment,
-    metric,
-    inputs: {pricePct, costPct, yieldPct, discPts, durDelta},
-    rows: res
-  };
-
-  state.cache.lastSensitivity = payload;
-  renderSensitivity();
-  toast("Sensitivity updated");
-}
-
-function sensitivityTableHtml(payload){
-  const metric = payload.metric;
-  const isRatio = (metric === "bcr" || metric === "roi");
-
-  let html = `<table>
-    <thead><tr>
-      <th>Driver</th>
-      <th>Low</th>
-      <th>Base</th>
-      <th>High</th>
-    </tr></thead><tbody>`;
-
-  for (const r of payload.rows){
-    const f = (x) => isRatio ? fmtNumber(x, 3) : fmtMoney(x, 0);
-    html += `<tr>
-      <td>${escapeHtml(r.driver)}</td>
-      <td class="mono">${escapeHtml(f(r.low))}</td>
-      <td class="mono">${escapeHtml(f(r.base))}</td>
-      <td class="mono">${escapeHtml(f(r.high))}</td>
-    </tr>`;
-  }
-
-  html += `</tbody></table>`;
-  return html;
-}
-
-/* =========================
-   Exports
-   ========================= */
-function toCsv(rows, columns){
-  const cols = columns || (rows[0] ? Object.keys(rows[0]) : []);
-  const esc = (v) => {
-    const s = (v === null || v === undefined) ? "" : String(v);
-    if (/[",\n]/.test(s)) return `"${s.replaceAll('"','""')}"`;
-    return s;
-  };
-  const lines = [];
-  lines.push(cols.map(esc).join(","));
-  for (const r of rows){
-    lines.push(cols.map(c => esc(r[c])).join(","));
-  }
-  return lines.join("\n");
-}
-
-function downloadBlob(filename, blob){
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function downloadText(filename, text, mime="text/plain"){
-  downloadBlob(filename, new Blob([text], {type: mime}));
-}
-
-function exportVerticalCsv(){
-  const cba = buildCbaAllTreatments();
-  if (!cba.length) return toast("Nothing to export");
-  // Build a 2D representation: first column indicator, then each treatment
-  const metric = state.ui.rankBy;
-  const scored = cba.map(x => ({name:x.name, v: (metric==="npv"?x.npv:(metric==="bcr"?x.bcr:x.roi))}))
-    .sort((a,b)=> {
-      const aBad = !Number.isFinite(a.v);
-      const bBad = !Number.isFinite(b.v);
-      if (aBad && bBad) return a.name.localeCompare(b.name);
-      if (aBad) return 1;
-      if (bBad) return -1;
-      return (b.v - a.v);
-    });
-  const rankMap = {};
-  for (let i=0; i<scored.length; i++) rankMap[scored[i].name] = i+1;
-
-  const indicators = [
-    {Indicator:"PV benefits", key:"pvBenefits"},
-    {Indicator:"PV costs", key:"pvCosts"},
-    {Indicator:"NPV", key:"npv"},
-    {Indicator:"BCR", key:"bcr"},
-    {Indicator:"ROI", key:"roi"},
-    {Indicator:`Rank (by ${metric.toUpperCase()})`, key:"rank"}
-  ];
-
-  const cols = ["Indicator", ...cba.map(x => x.name)];
-  const rows = indicators.map(ind => {
-    const obj = {Indicator: ind.Indicator};
-    for (const t of cba){
-      let v = "";
-      if (ind.key === "rank") v = rankMap[t.name] || "";
-      else v = t[ind.key];
-      obj[t.name] = v;
-    }
-    return obj;
-  });
-
-  downloadText("cba_vertical.csv", toCsv(rows, cols), "text/csv");
-}
-
-function exportTrialSummaryCsv(){
-  const sum = buildTrialSummary();
-  if (!sum.length) return toast("Nothing to export");
-  const cols = ["name","n","yield_mean","cost_mean","delta_yield","delta_cost"];
-  downloadText("trial_summary.csv", toCsv(sum, cols), "text/csv");
-}
-
-function exportStateJson(){
-  const payload = {
-    source: state.source,
-    columns: state.columns,
-    map: state.map,
-    assumptions: state.assumptions,
-    treatmentOverrides: state.treatmentOverrides,
-    raw: state.raw
-  };
-  downloadText("tool_state.json", JSON.stringify(payload, null, 2), "application/json");
-}
-
-function exportSensitivityXlsx(){
-  if (!state.cache.lastSensitivity) return toast("Run sensitivity first");
-  if (!window.XLSX) return toast("XLSX library missing");
-
-  const wb = XLSX.utils.book_new();
-  const s = state.cache.lastSensitivity;
-
-  const meta = [
-    {key:"Treatment", value:s.treatment},
-    {key:"Metric", value:s.metric},
-    {key:"Price change +/-", value:(s.inputs.pricePct*100)+"%"},
-    {key:"Cost mult change +/-", value:(s.inputs.costPct*100)+"%"},
-    {key:"Yield mult change +/-", value:(s.inputs.yieldPct*100)+"%"},
-    {key:"Discount rate change +/- (pp)", value:s.inputs.discPts},
-    {key:"Duration change +/- (years)", value:s.inputs.durDelta}
-  ];
-
-  const wsMeta = XLSX.utils.json_to_sheet(meta);
-  XLSX.utils.book_append_sheet(wb, wsMeta, "Sensitivity_Meta");
-
-  const ws = XLSX.utils.json_to_sheet(s.rows);
-  XLSX.utils.book_append_sheet(wb, ws, "Sensitivity");
-
-  const out = XLSX.write(wb, {bookType:"xlsx", type:"array"});
-  downloadBlob("sensitivity.xlsx", new Blob([out], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
-}
-
-function exportFullWorkbookXlsx(){
-  if (!window.XLSX) return toast("XLSX library missing");
-  if (!state.raw.length) return toast("Load data first");
-
-  const wb = XLSX.utils.book_new();
-
-  // Assumptions
-  const assumpRows = Object.keys(state.assumptions).map(k => ({key:k, value: state.assumptions[k]}));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(assumpRows), "Assumptions");
-
-  // Trial means
-  const trial = buildTrialSummary();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(trial), "TrialMeans");
-
-  // CBA vertical
-  const cba = buildCbaAllTreatments();
-  if (cba.length){
-    const metric = state.ui.rankBy;
-    const scored = cba.map(x => ({name:x.name, v: (metric==="npv"?x.npv:(metric==="bcr"?x.bcr:x.roi))}))
-      .sort((a,b)=> {
-        const aBad = !Number.isFinite(a.v);
-        const bBad = !Number.isFinite(b.v);
-        if (aBad && bBad) return a.name.localeCompare(b.name);
-        if (aBad) return 1;
-        if (bBad) return -1;
-        return (b.v - a.v);
-      });
-    const rankMap = {};
-    for (let i=0; i<scored.length; i++) rankMap[scored[i].name] = i+1;
-
-    const indicators = [
-      {Indicator:"PV benefits", key:"pvBenefits"},
-      {Indicator:"PV costs", key:"pvCosts"},
-      {Indicator:"NPV", key:"npv"},
-      {Indicator:"BCR", key:"bcr"},
-      {Indicator:"ROI", key:"roi"},
-      {Indicator:`Rank (by ${metric.toUpperCase()})`, key:"rank"}
-    ];
-    const cols = ["Indicator", ...cba.map(x => x.name)];
-    const rows = indicators.map(ind => {
-      const obj = {Indicator: ind.Indicator};
-      for (const t of cba){
-        obj[t.name] = (ind.key === "rank") ? (rankMap[t.name] || "") : t[ind.key];
-      }
-      return obj;
-    });
-    const wsVert = XLSX.utils.json_to_sheet(rows, {header: cols});
-    XLSX.utils.book_append_sheet(wb, wsVert, "CBA_Vertical");
-  }
-
-  // Cashflows (all treatments)
-  const cashRows = [];
-  const T = Math.max(1, Math.floor(Number(state.assumptions.horizonYears) || 1));
-  for (const t of cba){
-    for (let y=0; y<=T; y++){
-      cashRows.push({
-        treatment: t.name,
-        year: y,
-        price: (y===0 ? "" : priceForYear(y)),
-        benefit_factor: (y===0 ? "" : benefitFactorByYear(y)),
-        benefits: t.benefits[y],
-        costs: t.costs[y],
-        net: t.net[y],
-        discount_factor: discountFactor(y),
-        pv_net: t.net[y] * discountFactor(y)
-      });
-    }
-  }
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cashRows), "Cashflows_All");
-
-  // Sensitivity (last run)
-  if (state.cache.lastSensitivity){
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(state.cache.lastSensitivity.rows), "Sensitivity_Last");
-  }
-
-  // Raw data
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(state.raw), "RawData");
-
-  const out = XLSX.write(wb, {bookType:"xlsx", type:"array"});
-  downloadBlob("farming_cba_tool_output.xlsx", new Blob([out], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
-}
-
-/* =========================
-   Events
-   ========================= */
-function bindEvents(){
-  // Tabs
-  $$(".tab").forEach(btn => btn.addEventListener("click", () => setActiveTab(btn.dataset.tab)));
-
-  // Import
-  $("#fileInput").addEventListener("change", async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    try{
-      const buf = await f.arrayBuffer();
-      await importExcelArrayBuffer(buf, f.name);
-      setActiveTab("mapping");
-    } catch(err){
-      console.error(err);
-      toast(`Import failed: ${err.message || err}`);
-    }
-  });
-
-  $("#btnLoadBundledXlsx").addEventListener("click", async () => {
-    try{
-      const ok = await tryLoadBundled();
-      if (!ok) toast("Bundled XLSX not found. Use Import or embedded sample.");
-      else setActiveTab("mapping");
-    } catch(err){
-      console.error(err);
-      toast(`Bundled load failed: ${err.message || err}`);
-    }
-  });
-
-  $("#btnLoadEmbedded").addEventListener("click", () => {
-    loadEmbedded();
-    setActiveTab("mapping");
-  });
-
-  $("#btnReset").addEventListener("click", resetApp);
-
-  $("#btnGoMapping").addEventListener("click", () => setActiveTab("mapping"));
-  $("#btnGoResults").addEventListener("click", () => setActiveTab("results"));
-
-  $("#btnGoAssumptions").addEventListener("click", () => setActiveTab("assumptions"));
-  $("#btnGoImport").addEventListener("click", () => setActiveTab("import"));
-  $("#btnGoResults2").addEventListener("click", () => setActiveTab("results"));
-
-  // Mapping selectors
-  $("#mapTreatment").addEventListener("change", (e) => {
-    state.map.treatment = e.target.value;
-    // baseline options depend on treatment key
-    const d = detectDefaultMappings(state.raw, state.columns);
-    // if changed, re-init overrides
-    initTreatmentOverrides();
-    // set baseline to control if exists
-    state.map.baseline = d.baseline || state.map.baseline;
-    invalidateCache();
-    renderAll();
-  });
-
-  $("#mapBaseline").addEventListener("change", (e) => {
-    state.map.baseline = e.target.value;
-    // keep baseline enabled
-    if (state.treatmentOverrides[state.map.baseline]){
-      state.treatmentOverrides[state.map.baseline].enabled = true;
-      state.treatmentOverrides[state.map.baseline].adoption = 1;
-    }
-    invalidateCache();
-    renderAll();
-  });
-
-  $("#mapYield").addEventListener("change", (e) => {
-    state.map.yield = e.target.value || null;
-    invalidateCache();
-    renderAll();
-  });
-
-  $("#mapCost").addEventListener("change", (e) => {
-    state.map.cost = e.target.value || null;
-    invalidateCache();
-    renderAll();
-  });
-
-  $("#mapOptional1").addEventListener("change", (e) => {
-    state.map.optional1 = e.target.value || null;
-    renderAll();
-  });
-
-  // Assumptions inputs
-  const bindAssump = (id, key, parser=(x)=>x) => {
-    $(id).addEventListener("input", (e) => {
-      state.assumptions[key] = parser(e.target.value);
-      invalidateCache();
-      renderAll();
-    });
-  };
-
-  bindAssump("#assumpArea", "areaHa", (v)=>Number(v));
-  bindAssump("#assumpHorizon", "horizonYears", (v)=>Math.max(1, Math.floor(Number(v||1))));
-  bindAssump("#assumpDiscount", "discountRatePct", (v)=>Math.max(0, Number(v)));
-  bindAssump("#assumpPrice", "priceYear1", (v)=>Math.max(0, Number(v)));
-  bindAssump("#assumpPriceGrowth", "priceGrowthPct", (v)=>Number(v));
-
-  $("#assumpYieldScale").addEventListener("change", (e)=>{ state.assumptions.yieldScale = Number(e.target.value||1); invalidateCache(); renderAll(); });
-  $("#assumpCostScale").addEventListener("change", (e)=>{ state.assumptions.costScale = Number(e.target.value||1); invalidateCache(); renderAll(); });
-
-  bindAssump("#assumpBenefitStart", "benefitStartYear", (v)=>Math.max(1, Math.floor(Number(v||1))));
-  bindAssump("#assumpDuration", "effectDurationYears", (v)=>Math.max(1, Math.floor(Number(v||1))));
-  $("#assumpDecay").addEventListener("change", (e)=>{ state.assumptions.decay = e.target.value; invalidateCache(); renderAll(); });
-  bindAssump("#assumpHalfLife", "halfLifeYears", (v)=>Math.max(0.1, Number(v||2)));
-  $("#assumpCostTimingDefault").addEventListener("change", (e)=>{ state.assumptions.costTimingDefault = e.target.value; invalidateCache(); renderAll(); });
-
-  $("#btnResetAssumptions").addEventListener("click", () => {
-    state.assumptions = {
-      areaHa: 100,
-      horizonYears: 10,
+    settings: {
+      farmAreaHa: 100,
+      years: 10,
       discountRatePct: 7,
-      priceYear1: 450,
-      priceGrowthPct: 0,
-      yieldScale: 1,
-      costScale: 1,
-      benefitStartYear: 1,
-      effectDurationYears: 5,
-      decay: "linear",
-      halfLifeYears: 2,
-      costTimingDefault: "y1_only"
-    };
-    invalidateCache();
-    renderAll();
-    toast("Assumptions reset");
-  });
-
-  // Results controls
-  $("#resultMetric").addEventListener("change", (e)=>{ state.ui.rankBy = e.target.value; renderResults(); });
-  $("#resultView").addEventListener("change", (e)=>{ state.ui.view = e.target.value; invalidateCache(); renderAll(); });
-
-  $("#btnGoCashflows").addEventListener("click", ()=> setActiveTab("cashflows"));
-
-  // Cashflows
-  $("#cashflowTreatment").addEventListener("change", ()=>{ renderCashflows(); });
-  $("#btnBackToResults").addEventListener("click", ()=> setActiveTab("results"));
-
-  // Sensitivity
-  $("#btnRunSensitivity").addEventListener("click", runSensitivity);
-  $("#btnResetSensitivity").addEventListener("click", () => {
-    $("#sensPricePct").value = 10;
-    $("#sensCostPct").value = 10;
-    $("#sensYieldPct").value = 10;
-    $("#sensDiscountPts").value = 2;
-    $("#sensDurationDelta").value = 2;
-    toast("Sensitivity inputs reset");
-  });
-  $("#btnSensitivityExportXlsx").addEventListener("click", exportSensitivityXlsx);
-
-  // Export
-  $("#btnExportXlsx").addEventListener("click", exportFullWorkbookXlsx);
-  $("#btnExportVerticalCsv").addEventListener("click", exportVerticalCsv);
-  $("#btnExportTrialSummaryCsv").addEventListener("click", exportTrialSummaryCsv);
-  $("#btnExportStateJson").addEventListener("click", exportStateJson);
-}
-
-/* =========================
-   Reset + boot
-   ========================= */
-function resetApp(){
-  state.source = null;
-  state.raw = [];
-  state.columns = [];
-  state.map = {treatment:null, baseline:null, yield:null, cost:null, optional1:null};
-  state.assumptions = {
-    areaHa: 100,
-    horizonYears: 10,
-    discountRatePct: 7,
-    priceYear1: 450,
-    priceGrowthPct: 0,
-    yieldScale: 1,
-    costScale: 1,
-    benefitStartYear: 1,
-    effectDurationYears: 5,
-    decay: "linear",
-    halfLifeYears: 2,
-    costTimingDefault: "y1_only"
-  };
-  state.treatmentOverrides = {};
-  state.ui = {activeTab:"import", rankBy:"npv", view:"whole_farm", cashflowTreatment:null};
-  state.cache = {trialSummary:null, cbaPerTreatment:null, lastSensitivity: state.cache.lastSensitivity || null};
-
-  const fi = $("#fileInput");
-  if (fi) fi.value = "";
-  toast("Reset complete");
-  renderAll();
-  setActiveTab("import");
-}
-
-(function boot(){
-  bindEvents();
-
-  // Sensitivity defaults
-  $("#sensPricePct").value = 10;
-  $("#sensCostPct").value = 10;
-  $("#sensYieldPct").value = 10;
-  $("#sensDiscountPts").value = 2;
-  $("#sensDurationDelta").value = 2;
-
-  renderAll();
-  setActiveTab("import");
-
-  // Auto-load: try bundled; otherwise embedded
-  (async () => {
-    try{
-      const ok = await tryLoadBundled();
-      if (!ok) loadEmbedded();
-      // stay on import; data ready
-    } catch(e){
-      loadEmbedded();
+      adoption: 0.9,
+      risk: 0.15,
+      reconTolerance: 10
+    },
+    outputs: [
+      { id: "out_yield", name: "Grain yield", unit: "t/ha", unitValue: 450, source: "Input Directly" }
+    ],
+    treatments: [],
+    importMeta: {
+      active: { source: "default", fileName: "Default dataset", sheetName: "Default", rowsRead: DEFAULT_ROWS.length, appliedAt: new Date().toISOString() },
+      mapping: null,
+      columnStats: null,
+      aggregated: null
     }
-  })();
+  };
+
+  // ---------- TABS + ACCESSIBILITY ----------
+  function switchTab(target) {
+    if (!target) return;
+    $$("[data-tab]").forEach(btn => {
+      const active = btn.dataset.tab === target;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+      btn.tabIndex = active ? 0 : -1;
+    });
+    $$(".tab-panel").forEach(p => {
+      const key = p.dataset.tabPanel;
+      const show = key === target;
+      p.classList.toggle("active", show);
+      p.hidden = !show;
+      p.setAttribute("aria-hidden", show ? "false" : "true");
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function initTabs() {
+    document.addEventListener("click", e => {
+      const jump = e.target.closest("[data-tab-jump]");
+      if (jump) {
+        e.preventDefault();
+        switchTab(jump.dataset.tabJump);
+        return;
+      }
+      const btn = e.target.closest("[data-tab]");
+      if (!btn) return;
+      e.preventDefault();
+      switchTab(btn.dataset.tab);
+    });
+
+    // Keyboard navigation
+    $(".tabs")?.addEventListener("keydown", e => {
+      const tabs = $$("[data-tab]");
+      const idx = tabs.findIndex(t => t.classList.contains("active"));
+      if (idx < 0) return;
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        const next = e.key === "ArrowRight" ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
+        tabs[next].focus();
+        switchTab(tabs[next].dataset.tab);
+      }
+    });
+  }
+
+  // ---------- MATH ----------
+  const annuityFactor = (N, rPct) => {
+    const r = rPct / 100;
+    return r === 0 ? N : (1 - Math.pow(1 + r, -N)) / r;
+  };
+
+  // Robust numeric parsing (currency, commas, blanks, parentheses)
+  function parseNumber(value) {
+    if (value === null || value === undefined || value === "") return NaN;
+    if (typeof value === "number") return value;
+    let s = String(value).trim();
+    if (!s) return NaN;
+    // parentheses negative
+    const neg = /^\(.*\)$/.test(s);
+    if (neg) s = s.slice(1, -1);
+    // strip currency symbols and commas
+    s = s.replace(/[$£€,\s]/g, "");
+    // percentages (interpret as numeric percent, not fraction)
+    if (/%$/.test(s)) s = s.replace(/%$/, "");
+    const n = parseFloat(s);
+    if (!Number.isFinite(n)) return NaN;
+    return neg ? -n : n;
+  }
+
+  function canonCol(s) {
+    return String(s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/[^a-z0-9 %/()._-]+/g, "");
+  }
+
+  // ---------- IMPORT SCHEMA ----------
+  // Roles:
+  // - treatment: treatment identifier/name
+  // - output: output level (e.g., yield)
+  // - cost_labour: cost component
+  // - cost_operating: cost component
+  // - ignore: (allowed but discouraged)
+  const ROLE = {
+    TREATMENT: "treatment",
+    OUTPUT: "output",
+    COST_LABOUR: "cost_labour",
+    COST_OPERATING: "cost_operating",
+    IGNORE: "ignore"
+  };
+
+  const REQUIRED = {
+    treatment: {
+      label: "Treatment name",
+      aliases: ["amendment", "treatment", "treatment name", "name", "option", "arm"]
+    },
+    yield: {
+      label: "Yield (t/ha)",
+      aliases: ["yield t/ha", "yield", "grain yield", "yield (t/ha)", "yield t ha", "t/ha"]
+    }
+  };
+
+  function detectMappingFromHeaders(headers) {
+    const hcanon = headers.map(h => ({ raw: h, canon: canonCol(h) }));
+    let treatmentCol = null;
+    let yieldCol = null;
+
+    for (const h of hcanon) {
+      if (!treatmentCol && REQUIRED.treatment.aliases.some(a => h.canon === canonCol(a))) treatmentCol = h.raw;
+      if (!yieldCol && REQUIRED.yield.aliases.some(a => h.canon === canonCol(a))) yieldCol = h.raw;
+    }
+
+    const roles = {};
+    headers.forEach(h => {
+      const c = canonCol(h);
+      if (treatmentCol && h === treatmentCol) roles[h] = { role: ROLE.TREATMENT, outputId: null };
+      else if (yieldCol && h === yieldCol) roles[h] = { role: ROLE.OUTPUT, outputId: "out_yield" };
+      else {
+        // heuristic: labour vs operating
+        if (c.includes("labour")) roles[h] = { role: ROLE.COST_LABOUR, outputId: null };
+        else roles[h] = { role: ROLE.COST_OPERATING, outputId: null };
+      }
+    });
+
+    // If treatment/yield not found, attempt fuzzy contains matches
+    if (!treatmentCol) {
+      const cand = headers.find(h => canonCol(h).includes("amendment") || canonCol(h).includes("treatment"));
+      if (cand) roles[cand] = { role: ROLE.TREATMENT, outputId: null };
+    }
+    if (!yieldCol) {
+      const cand = headers.find(h => canonCol(h).includes("yield"));
+      if (cand) roles[cand] = { role: ROLE.OUTPUT, outputId: "out_yield" };
+    }
+
+    return roles;
+  }
+
+  function buildColumnStats(rows, headers, roles) {
+    const stats = {};
+    headers.forEach(h => {
+      let ok = 0, bad = 0, blank = 0;
+      rows.forEach(r => {
+        const v = r[h];
+        if (v === null || v === undefined || v === "") { blank++; return; }
+        if (roles[h]?.role === ROLE.TREATMENT) { ok++; return; }
+        const n = parseNumber(v);
+        if (Number.isNaN(n)) bad++; else ok++;
+      });
+      const total = rows.length || 1;
+      stats[h] = { ok, bad, blank, rate: ok / total };
+    });
+    return stats;
+  }
+
+  function validateImport(rows, headers, roles) {
+    const errors = [];
+
+    const treatmentCols = headers.filter(h => roles[h]?.role === ROLE.TREATMENT);
+    const yieldCols = headers.filter(h => roles[h]?.role === ROLE.OUTPUT && roles[h]?.outputId === "out_yield");
+    if (!treatmentCols.length) errors.push("Missing required treatment column (e.g., 'Amendment' or 'Treatment').");
+    if (!yieldCols.length) errors.push("Missing required yield column (e.g., 'Yield t/ha').");
+
+    // Check for empty treatment names
+    const tcol = treatmentCols[0];
+    if (tcol) {
+      const empties = rows.filter(r => !String(r[tcol] ?? "").trim()).length;
+      if (empties > 0) errors.push(`Found ${empties} rows with blank treatment names in column "${tcol}".`);
+    }
+
+    // Numeric parse success thresholds for numeric columns (exclude treatment col)
+    const colStats = buildColumnStats(rows, headers, roles);
+    headers.forEach(h => {
+      const role = roles[h]?.role;
+      if (role === ROLE.TREATMENT) return;
+      // If parse success is low, report
+      const st = colStats[h];
+      if (st && st.bad > 0 && st.rate < 0.9) {
+        errors.push(`Column "${h}" has many non-numeric cells (${st.bad}/${rows.length}). Check formatting.`);
+      }
+    });
+
+    return { ok: errors.length === 0, errors, colStats };
+  }
+
+  function aggregateRows(rows, headers, roles) {
+    const tcol = headers.find(h => roles[h]?.role === ROLE.TREATMENT);
+    if (!tcol) return null;
+
+    // Build outputs list from roles (always include out_yield)
+    const outputCols = headers.filter(h => roles[h]?.role === ROLE.OUTPUT);
+    const costLabCols = headers.filter(h => roles[h]?.role === ROLE.COST_LABOUR);
+    const costOpCols = headers.filter(h => roles[h]?.role === ROLE.COST_OPERATING);
+
+    const groups = new Map();
+    rows.forEach(r => {
+      const name = String(r[tcol] ?? "").trim();
+      if (!name) return;
+
+      if (!groups.has(name)) {
+        groups.set(name, {
+          name,
+          n: 0,
+          sums: {},
+          counts: {}
+        });
+      }
+      const g = groups.get(name);
+      g.n++;
+
+      // numeric aggregation for every non-treatment column (no omissions)
+      headers.forEach(h => {
+        if (h === tcol) return;
+        const role = roles[h]?.role;
+        if (role === ROLE.IGNORE) return;
+
+        // For OUTPUT and COST roles, try parseNumber; blank -> treated as 0 but counted
+        const n = parseNumber(r[h]);
+        const val = Number.isNaN(n) ? 0 : n;
+
+        g.sums[h] = (g.sums[h] || 0) + val;
+        g.counts[h] = (g.counts[h] || 0) + 1;
+      });
+    });
+
+    const treatments = [];
+    for (const [name, g] of groups.entries()) {
+      const means = {};
+      Object.keys(g.sums).forEach(h => {
+        const c = g.counts[h] || 1;
+        means[h] = g.sums[h] / c;
+      });
+
+      treatments.push({
+        name,
+        nReplicates: g.n,
+        outputLevels: Object.fromEntries(outputCols.map(h => [h, means[h] ?? 0])),
+        labourCosts: Object.fromEntries(costLabCols.map(h => [h, means[h] ?? 0])),
+        operatingCosts: Object.fromEntries(costOpCols.map(h => [h, means[h] ?? 0]))
+      });
+    }
+
+    // Detect control by name
+    const control = treatments.find(t => canonCol(t.name).includes("control"));
+    return {
+      treatmentCol: tcol,
+      outputCols,
+      costLabCols,
+      costOpCols,
+      treatments,
+      controlName: control ? control.name : null
+    };
+  }
+
+  // ---------- APPLY IMPORT TO MODEL ----------
+  function ensureOutputsFromMapping(agg) {
+    // Always keep out_yield; add additional outputs if user classified more as OUTPUT
+    // In this build, we store outputs by "Excel column name", but map to output ids.
+    // We keep output id stable by slugging the column name.
+    const existing = new Map(model.outputs.map(o => [o.id, o]));
+    // Guarantee yield exists
+    if (!existing.has("out_yield")) {
+      model.outputs.unshift({ id: "out_yield", name: "Grain yield", unit: "t/ha", unitValue: 450, source: "Input Directly" });
+    }
+
+    // Add any non-yield output columns as separate outputs
+    (agg.outputCols || []).forEach(col => {
+      // col might be yield too; skip if mapped to out_yield by override logic
+      const isYield = canonCol(col).includes("yield") || canonCol(col) === canonCol("Yield t/ha");
+      if (isYield) return;
+
+      const id = "out_" + canonCol(col).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 32);
+      if (!existing.has(id)) {
+        model.outputs.push({
+          id,
+          name: col,
+          unit: "unit/ha",
+          unitValue: 0,
+          source: "Imported"
+        });
+      }
+    });
+  }
+
+  function applyAggregatedToModel(agg, meta) {
+    ensureOutputsFromMapping(agg);
+
+    // Determine which column is yield in the aggregated outputLevels: best match using aliases
+    const yieldCol = (agg.outputCols || []).find(c => REQUIRED.yield.aliases.some(a => canonCol(c) === canonCol(a))) ||
+                     (agg.outputCols || []).find(c => canonCol(c).includes("yield")) ||
+                     (agg.outputCols || [])[0];
+
+    const controlName = agg.controlName || agg.treatments[0]?.name || "Control";
+    const farmArea = Number(model.settings.farmAreaHa) || 0;
+
+    // Create treatments with cost build-up line items
+    model.treatments = agg.treatments.map(t => {
+      const isControl = t.name === controlName;
+      const opItems = [];
+
+      // labour costs as items
+      Object.keys(t.labourCosts || {}).forEach(k => {
+        opItems.push({ id: uid(), label: k, valuePerHa: Number(t.labourCosts[k]) || 0, category: "Labour" });
+      });
+
+      // operating costs as items
+      Object.keys(t.operatingCosts || {}).forEach(k => {
+        opItems.push({ id: uid(), label: k, valuePerHa: Number(t.operatingCosts[k]) || 0, category: "Operating" });
+      });
+
+      // Output levels (per ha). Map yield column to out_yield and other output cols to their output ids by name.
+      const outputsPerHa = {};
+      model.outputs.forEach(o => { outputsPerHa[o.id] = 0; });
+
+      // Yield
+      outputsPerHa["out_yield"] = Number((t.outputLevels || {})[yieldCol]) || 0;
+
+      // Additional outputs (if any output cols were reclassified). Match by column name to output id slug.
+      (agg.outputCols || []).forEach(col => {
+        if (col === yieldCol) return;
+        const id = "out_" + canonCol(col).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 32);
+        if (outputsPerHa[id] !== undefined) outputsPerHa[id] = Number((t.outputLevels || {})[col]) || 0;
+      });
+
+      return {
+        id: uid(),
+        name: t.name,
+        isControl,
+        areaHa: farmArea,
+        adoption: 1,
+        capitalCostY0: 0,
+        opCostItems: opItems, // $/ha line items
+        outputsPerHa,          // per ha levels
+        nReplicates: t.nReplicates || 1,
+        notes: ""
+      };
+    });
+
+    // Ensure exactly one control; if none detected, force first as control
+    if (!model.treatments.some(t => t.isControl) && model.treatments.length) {
+      model.treatments[0].isControl = true;
+    } else if (model.treatments.filter(t => t.isControl).length > 1) {
+      const first = model.treatments.find(t => t.isControl);
+      model.treatments.forEach(t => { t.isControl = (t === first); });
+    }
+
+    model.importMeta.active = meta;
+    model.importMeta.aggregated = agg;
+    audit("Import applied", `${meta.fileName} · sheet=${meta.sheetName} · rows=${meta.rowsRead} · treatments=${model.treatments.length}`);
+
+    // Persist last successful upload meta for restore
+    try {
+      localStorage.setItem(STORAGE_KEYS.lastUpload, JSON.stringify({
+        meta,
+        agg,
+        outputs: model.outputs
+      }));
+    } catch {}
+
+    renderAll();
+    showToast("Excel import applied. Results updated.");
+  }
+
+  function restoreLastSuccessfulUpload() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.lastUpload);
+      if (!raw) {
+        showToast("No saved upload found in this browser.");
+        return;
+      }
+      const obj = JSON.parse(raw);
+      if (!obj?.agg || !obj?.meta) {
+        showToast("Saved upload is invalid.");
+        return;
+      }
+      if (Array.isArray(obj.outputs) && obj.outputs.length) model.outputs = obj.outputs;
+      applyAggregatedToModel(obj.agg, obj.meta);
+      audit("Restore last upload", obj.meta.fileName || "unknown");
+    } catch {
+      showToast("Unable to restore last upload.");
+    }
+  }
+
+  // ---------- RESULTS CALCULATIONS ----------
+  function computeTreatmentTotals(t) {
+    const opPerHa = (t.opCostItems || []).reduce((s, it) => s + (Number(it.valuePerHa) || 0), 0);
+    const opFarm = opPerHa * (Number(t.areaHa) || 0);
+    return { opPerHa, opFarm };
+  }
+
+  function computeAnnualBenefit(t, outputsOverride = null, unitValuesOverride = null, adoptionOverride = null, riskOverride = null) {
+    const area = Number(t.areaHa) || 0;
+    const adopt = clamp(adoptionOverride ?? model.settings.adoption, 0, 1);
+    const risk = clamp(riskOverride ?? model.settings.risk, 0, 1);
+
+    const outputsPerHa = outputsOverride || t.outputsPerHa || {};
+    let perHaValue = 0;
+    model.outputs.forEach(o => {
+      const level = Number(outputsPerHa[o.id]) || 0;
+      const unitValue = Number((unitValuesOverride && unitValuesOverride[o.id] != null) ? unitValuesOverride[o.id] : o.unitValue) || 0;
+      perHaValue += level * unitValue;
+    });
+
+    return perHaValue * area * adopt * (1 - risk);
+  }
+
+  function computeMetricsForTreatment(t, scenario = null) {
+    const years = Number(scenario?.years ?? model.settings.years) || 1;
+    const r = Number(scenario?.discountRatePct ?? model.settings.discountRatePct) || 0;
+    const adopt = clamp(scenario?.adoption ?? model.settings.adoption, 0, 1);
+    const risk = clamp(scenario?.risk ?? model.settings.risk, 0, 1);
+
+    const { opFarm } = computeTreatmentTotals(t);
+    const cap = Number(t.capitalCostY0) || 0;
+
+    const annualBenefit = computeAnnualBenefit(t, scenario?.outputsOverride || null, scenario?.unitValuesOverride || null, adopt, risk);
+    const annualCost = opFarm; // per-year operating
+
+    const af = annuityFactor(years, r);
+    const pvBenefits = annualBenefit * af;
+    const pvCosts = cap + annualCost * af;
+    const npv = pvBenefits - pvCosts;
+    const bcr = pvCosts > 0 ? pvBenefits / pvCosts : NaN;
+    const roi = pvCosts > 0 ? (npv / pvCosts) * 100 : NaN;
+
+    return { pvBenefits, pvCosts, npv, bcr, roi, annualBenefit, annualCost, capY0: cap, years, r, adopt, risk };
+  }
+
+  function computeAllMetrics(scenario = null) {
+    const control = model.treatments.find(t => t.isControl) || model.treatments[0] || null;
+    const list = model.treatments.map(t => ({ t, m: computeMetricsForTreatment(t, scenario) }));
+
+    const controlEntry = control ? list.find(x => x.t === control) : null;
+    const c = controlEntry ? controlEntry.m : null;
+
+    // Rank by NPV (descending), excluding control from ranking (but still displayed)
+    const ranked = list
+      .filter(x => !x.t.isControl)
+      .slice()
+      .sort((a, b) => {
+        const A = isFiniteNum(a.m.npv) ? a.m.npv : -Infinity;
+        const B = isFiniteNum(b.m.npv) ? b.m.npv : -Infinity;
+        return B - A;
+      });
+
+    const rankMap = new Map();
+    ranked.forEach((x, i) => rankMap.set(x.t.id, i + 1));
+
+    const withDelta = list.map(x => {
+      const d = {};
+      if (c) {
+        d.pvBenefits = x.m.pvBenefits - c.pvBenefits;
+        d.pvCosts = x.m.pvCosts - c.pvCosts;
+        d.npv = x.m.npv - c.npv;
+        d.bcr = (isFiniteNum(x.m.bcr) && isFiniteNum(c.bcr)) ? (x.m.bcr - c.bcr) : NaN;
+        d.roi = (isFiniteNum(x.m.roi) && isFiniteNum(c.roi)) ? (x.m.roi - c.roi) : NaN;
+
+        // % deltas where meaningful (avoid divide by zero; if control is 0, leave null)
+        const pct = (val, base) => (isFiniteNum(base) && Math.abs(base) > 1e-12) ? (val / base) * 100 : null;
+        d.pctBenefits = pct(d.pvBenefits, c.pvBenefits);
+        d.pctCosts = pct(d.pvCosts, c.pvCosts);
+        d.pctNpv = pct(d.npv, c.npv);
+      }
+      return {
+        t: x.t,
+        m: x.m,
+        rank: x.t.isControl ? null : (rankMap.get(x.t.id) || null),
+        delta: d
+      };
+    });
+
+    return { control, controlMetrics: c, rows: withDelta };
+  }
+
+  // ---------- RESULTS UI (LEADERBOARD + COMPARISON TABLE) ----------
+  const RESULTS_FILTER = { mode: "all" }; // all | topnpv | topbcr | improve
+  let focusedTreatmentId = null;
+
+  function applyFilter(rows) {
+    const controlRow = rows.find(r => r.t.isControl);
+    const others = rows.filter(r => !r.t.isControl);
+
+    if (RESULTS_FILTER.mode === "topnpv") {
+      const sorted = others.slice().sort((a, b) => (b.m.npv - a.m.npv));
+      return [controlRow, ...sorted.slice(0, 5)].filter(Boolean);
+    }
+    if (RESULTS_FILTER.mode === "topbcr") {
+      const sorted = others.slice().sort((a, b) => {
+        const A = isFiniteNum(a.m.bcr) ? a.m.bcr : -Infinity;
+        const B = isFiniteNum(b.m.bcr) ? b.m.bcr : -Infinity;
+        return B - A;
+      });
+      return [controlRow, ...sorted.slice(0, 5)].filter(Boolean);
+    }
+    if (RESULTS_FILTER.mode === "improve") {
+      const improved = others.filter(r => isFiniteNum(r.delta?.npv) && r.delta.npv > 0);
+      return [controlRow, ...improved].filter(Boolean);
+    }
+    return rows;
+  }
+
+  function renderLeaderboard(allRows) {
+    const tbody = $("#leaderboard tbody");
+    if (!tbody) return;
+
+    const control = allRows.find(r => r.t.isControl);
+    const others = allRows.filter(r => !r.t.isControl);
+
+    const sorted = others.slice().sort((a, b) => {
+      const A = isFiniteNum(a.m.npv) ? a.m.npv : -Infinity;
+      const B = isFiniteNum(b.m.npv) ? b.m.npv : -Infinity;
+      return B - A;
+    });
+
+    tbody.innerHTML = sorted
+      .map(r => {
+        const deltaNpv = control ? (r.m.npv - control.m.npv) : NaN;
+        return `
+          <tr data-focus="${esc(r.t.id)}" class="${focusedTreatmentId === r.t.id ? "focus" : ""}">
+            <td class="center">${r.rank ?? ""}</td>
+            <td><b>${esc(r.t.name)}</b></td>
+            <td class="num">${money(deltaNpv)}</td>
+            <td class="num">${isFiniteNum(r.m.bcr) ? fmt(r.m.bcr, 2) : "n/a"}</td>
+            <td class="num">${money(r.m.pvCosts)}</td>
+            <td class="num">${money(r.m.pvBenefits)}</td>
+          </tr>`;
+      })
+      .join("");
+
+    tbody.onclick = e => {
+      const tr = e.target.closest("tr[data-focus]");
+      if (!tr) return;
+      const id = tr.dataset.focus;
+      focusedTreatmentId = (focusedTreatmentId === id) ? null : id;
+      renderResults(); // re-render to apply highlight
+      setTimeout(() => focusTreatmentColumn(id), 0);
+    };
+  }
+
+  function indicatorDefinitions() {
+    const years = Number(model.settings.years) || 1;
+    const r = Number(model.settings.discountRatePct) || 0;
+    return [
+      {
+        key: "pvBenefits",
+        label: "PV Benefits",
+        helpPlain:
+          "PV Benefits is the discounted sum of annual benefits over the time horizon. In this tool, annual benefits are computed from per-hectare output levels (e.g., yield) multiplied by unit values (e.g., grain price), then multiplied by farm area, adoption, and (1 − risk).",
+        helpMath:
+          `AnnualBenefits = (Σ_o [ Output_o(per ha) × UnitValue_o ]) × Area × Adoption × (1 − Risk)\n` +
+          `PV(Benefits) = Σ_{t=1..${years}} AnnualBenefits / (1 + r)^t, where r = ${r}%`,
+        recon: "pvBenefits"
+      },
+      {
+        key: "pvCosts",
+        label: "PV Costs",
+        helpPlain:
+          "PV Costs is the discounted sum of annual operating costs plus any year-0 capital cost. Operating costs are computed from the cost build-up line-items ($/ha) times farm area.",
+        helpMath:
+          `AnnualCosts = (Σ_k CostItem_k($/ha)) × Area\n` +
+          `PV(Costs) = CapitalCost(Y0) + Σ_{t=1..${years}} AnnualCosts / (1 + r)^t`,
+        recon: "pvCosts"
+      },
+      {
+        key: "npv",
+        label: "NPV",
+        helpPlain: "NPV is PV(Benefits) minus PV(Costs).",
+        helpMath: "NPV = PV(Benefits) − PV(Costs)",
+        recon: "npv"
+      },
+      {
+        key: "bcr",
+        label: "BCR",
+        helpPlain: "BCR is PV(Benefits) divided by PV(Costs).",
+        helpMath: "BCR = PV(Benefits) ÷ PV(Costs)",
+        recon: "bcr"
+      },
+      {
+        key: "roi",
+        label: "ROI",
+        helpPlain: "ROI is NPV divided by PV(Costs), expressed as a percentage.",
+        helpMath: "ROI (%) = 100 × NPV ÷ PV(Costs)",
+        recon: "roi"
+      },
+      {
+        key: "rank",
+        label: "Rank",
+        helpPlain: "Rank orders treatments (excluding control) by NPV (highest to lowest).",
+        helpMath: "Rank = sort by NPV descending",
+        recon: "rank"
+      },
+      {
+        key: "deltaNpv",
+        label: "ΔNPV vs Control",
+        helpPlain: "ΔNPV is NPV(treatment) minus NPV(control).",
+        helpMath: "ΔNPV = NPV_t − NPV_control",
+        recon: "deltaNpv"
+      },
+      {
+        key: "deltaPvCost",
+        label: "ΔPV Cost vs Control",
+        helpPlain: "ΔPV Cost is PV Costs(treatment) minus PV Costs(control).",
+        helpMath: "ΔPV Cost = PV(Costs)_t − PV(Costs)_control",
+        recon: "deltaPvCost"
+      }
+    ];
+  }
+
+  function renderComparisonTable(allRows) {
+    const table = $("#comparisonTable");
+    if (!table) return;
+
+    const filtered = applyFilter(allRows);
+    const control = filtered.find(r => r.t.isControl) || allRows.find(r => r.t.isControl) || null;
+
+    // Build header: sticky indicator col + control col + per-treatment group (value, Δ, Δ%)
+    const thead = table.querySelector("thead");
+    const tbody = table.querySelector("tbody");
+    thead.innerHTML = "";
+    tbody.innerHTML = "";
+
+    const treatments = filtered.filter(r => r.t); // includes control
+    const nonControl = treatments.filter(r => !r.t.isControl);
+
+    // Header row
+    const tr1 = document.createElement("tr");
+    tr1.innerHTML = `<th class="sticky-left">Indicator</th>` +
+      `<th class="control-col">Control (baseline)</th>` +
+      nonControl
+        .map(r => {
+          const focused = focusedTreatmentId === r.t.id ? " highlight" : "";
+          return `
+            <th class="${focused}" colspan="3" data-colgroup="${esc(r.t.id)}">
+              ${esc(r.t.name)}
+            </th>`;
+        })
+        .join("");
+    thead.appendChild(tr1);
+
+    // Subheader row (value / Δ / Δ%)
+    const tr2 = document.createElement("tr");
+    tr2.innerHTML = `<th class="sticky-left"> </th>` +
+      `<th class="control-col">Value</th>` +
+      nonControl
+        .map(r => {
+          const focused = focusedTreatmentId === r.t.id ? " highlight" : "";
+          return `
+            <th class="${focused}">Value</th>
+            <th class="${focused}">Δ vs control</th>
+            <th class="${focused}">Δ%</th>`;
+        })
+        .join("");
+    thead.appendChild(tr2);
+
+    const defs = indicatorDefinitions();
+
+    defs.forEach(def => {
+      const tr = document.createElement("tr");
+
+      const indicatorCell = document.createElement("td");
+      indicatorCell.className = "sticky-left body";
+      indicatorCell.innerHTML = `<button class="linklike" data-ind="${esc(def.key)}" type="button">${esc(def.label)}</button>`;
+      tr.appendChild(indicatorCell);
+
+      // Control value
+      const cVal = renderCellValue(def.key, control, control);
+      const tdC = document.createElement("td");
+      tdC.className = "num control-col";
+      tdC.innerHTML = cVal;
+      tr.appendChild(tdC);
+
+      // Each treatment group
+      nonControl.forEach(r => {
+        const valHtml = renderCellValue(def.key, r, control);
+        const delHtml = renderCellDelta(def.key, r, control);
+        const pctHtml = renderCellPct(def.key, r, control);
+
+        const cls = focusedTreatmentId === r.t.id ? "num highlight" : "num";
+
+        const tdV = document.createElement("td");
+        tdV.className = cls;
+        tdV.innerHTML = valHtml;
+
+        const tdD = document.createElement("td");
+        tdD.className = cls;
+        tdD.innerHTML = `<span class="delta">${delHtml}</span>`;
+
+        const tdP = document.createElement("td");
+        tdP.className = cls;
+        tdP.innerHTML = `<span class="delta">${pctHtml}</span>`;
+
+        tr.appendChild(tdV);
+        tr.appendChild(tdD);
+        tr.appendChild(tdP);
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    // Click indicator to open drawer
+    tbody.onclick = e => {
+      const btn = e.target.closest("button[data-ind]");
+      if (!btn) return;
+      openCalcDrawer(btn.dataset.ind, allRows);
+    };
+  }
+
+  function renderCellValue(key, row, controlRow) {
+    if (!row) return "—";
+    if (key === "rank") return row.rank != null ? String(row.rank) : (row.t.isControl ? "Baseline" : "");
+    if (key === "deltaNpv") {
+      if (!controlRow || row.t.isControl) return row.t.isControl ? "0" : "n/a";
+      return money(row.m.npv - controlRow.m.npv);
+    }
+    if (key === "deltaPvCost") {
+      if (!controlRow || row.t.isControl) return row.t.isControl ? "0" : "n/a";
+      return money(row.m.pvCosts - controlRow.m.pvCosts);
+    }
+    const v = row.m[key];
+    if (key === "bcr") return isFiniteNum(v) ? fmt(v, 2) : "n/a";
+    if (key === "roi") return isFiniteNum(v) ? percent(v) : "n/a";
+    if (key === "npv" || key === "pvBenefits" || key === "pvCosts") return money(v);
+    return isFiniteNum(v) ? fmt(v) : "n/a";
+  }
+
+  function renderCellDelta(key, row, controlRow) {
+    if (!row || !controlRow) return "—";
+    if (row.t.isControl) return "—";
+    if (key === "rank") return "—";
+    if (key === "deltaNpv") return "—";
+    if (key === "deltaPvCost") return "—";
+
+    const c = controlRow.m;
+    const v = row.m[key];
+
+    if (key === "bcr" || key === "roi") {
+      const dv = (isFiniteNum(v) && isFiniteNum(c[key])) ? (v - c[key]) : NaN;
+      return isFiniteNum(dv) ? fmt(dv, 2) : "n/a";
+    }
+    if (key === "npv" || key === "pvBenefits" || key === "pvCosts") {
+      const dv = (isFiniteNum(v) && isFiniteNum(c[key])) ? (v - c[key]) : NaN;
+      return isFiniteNum(dv) ? money(dv) : "n/a";
+    }
+    const dv = (isFiniteNum(v) && isFiniteNum(c[key])) ? (v - c[key]) : NaN;
+    return isFiniteNum(dv) ? fmt(dv) : "n/a";
+  }
+
+  function renderCellPct(key, row, controlRow) {
+    if (!row || !controlRow) return "—";
+    if (row.t.isControl) return "—";
+    if (key === "rank" || key === "deltaNpv" || key === "deltaPvCost") return "—";
+
+    const c = controlRow.m;
+    const v = row.m[key];
+    const base = c[key];
+
+    if (!isFiniteNum(v) || !isFiniteNum(base) || Math.abs(base) < 1e-12) return "n/a";
+    const pct = ((v - base) / base) * 100;
+    return percent(pct);
+  }
+
+  function focusTreatmentColumn(tid) {
+    const table = $("#comparisonTable");
+    if (!table) return;
+    // Remove highlight classes
+    $$(`#comparisonTable [data-colgroup]`).forEach(th => th.classList.remove("highlight"));
+    // Add highlight to the colgroup header
+    const th = table.querySelector(`[data-colgroup="${CSS.escape(tid)}"]`);
+    if (th) th.classList.add("highlight");
+
+    // Scroll to that header if possible
+    const wrap = $("#comparisonWrap");
+    if (wrap && th) {
+      const left = th.offsetLeft;
+      wrap.scrollTo({ left: Math.max(0, left - 120), behavior: "smooth" });
+    }
+  }
+
+  // ---------- CALC DETAILS DRAWER + RECONCILIATION ----------
+  function openCalcDrawer(indicatorKey, allRows) {
+    const defs = indicatorDefinitions();
+    const def = defs.find(d => d.key === indicatorKey);
+    if (!def) return;
+
+    const overlay = $("#drawerOverlay");
+    const drawer = $("#calcDrawer");
+    if (!drawer || !overlay) return;
+
+    $("#drawerTitle").textContent = `Calculation Details: ${def.label}`;
+    $("#drawerSubtitle").textContent = `Applies across treatments using the current Settings.`;
+    $("#formulaPlain").textContent = def.helpPlain;
+    $("#formulaMath").textContent = def.helpMath;
+
+    renderReconTable(indicatorKey, allRows);
+
+    overlay.hidden = false;
+    drawer.hidden = false;
+    drawer.setAttribute("aria-hidden", "false");
+    overlay.onclick = closeDrawer;
+    $("#drawerClose").onclick = closeDrawer;
+    document.addEventListener("keydown", escCloseDrawer, { once: true });
+  }
+
+  function escCloseDrawer(e) {
+    if (e.key === "Escape") closeDrawer();
+  }
+
+  function closeDrawer() {
+    const overlay = $("#drawerOverlay");
+    const drawer = $("#calcDrawer");
+    if (!drawer || !overlay) return;
+    overlay.hidden = true;
+    drawer.hidden = true;
+    drawer.setAttribute("aria-hidden", "true");
+  }
+
+  function renderReconTable(indicatorKey, allRows) {
+    const tol = Number(model.settings.reconTolerance) || 10;
+
+    const thead = $("#reconTable thead");
+    const tbody = $("#reconTable tbody");
+    if (!thead || !tbody) return;
+
+    const rows = allRows.map(r => {
+      const pvB = r.m.pvBenefits;
+      const pvC = r.m.pvCosts;
+      const npv = r.m.npv;
+      const bcr = r.m.bcr;
+      const roi = r.m.roi;
+
+      const calcNpv = pvB - pvC;
+      const calcBcr = pvC > 0 ? pvB / pvC : NaN;
+      const calcRoi = pvC > 0 ? (calcNpv / pvC) * 100 : NaN;
+
+      const diffNpv = isFiniteNum(npv) && isFiniteNum(calcNpv) ? (npv - calcNpv) : NaN;
+      const diffBcr = isFiniteNum(bcr) && isFiniteNum(calcBcr) ? (bcr - calcBcr) : NaN;
+      const diffRoi = isFiniteNum(roi) && isFiniteNum(calcRoi) ? (roi - calcRoi) : NaN;
+
+      const okNpv = !isFiniteNum(diffNpv) ? true : Math.abs(diffNpv) <= tol;
+      const okBcr = !isFiniteNum(diffBcr) ? true : Math.abs(diffBcr) <= 1e-6;
+      const okRoi = !isFiniteNum(diffRoi) ? true : Math.abs(diffRoi) <= 1e-6;
+
+      return {
+        name: r.t.name + (r.t.isControl ? " (Control)" : ""),
+        pvB, pvC, npv, bcr, roi,
+        calcNpv, calcBcr, calcRoi,
+        okNpv, okBcr, okRoi,
+        diffNpv, diffBcr, diffRoi
+      };
+    });
+
+    thead.innerHTML = `
+      <tr>
+        <th>Treatment</th>
+        <th class="num">PV(B)</th>
+        <th class="num">PV(C)</th>
+        <th class="num">NPV (reported)</th>
+        <th class="num">NPV check (PV(B)-PV(C))</th>
+        <th class="num">Flag</th>
+        <th class="num">BCR check</th>
+        <th class="num">ROI check</th>
+      </tr>
+    `;
+
+    tbody.innerHTML = rows.map(r => {
+      const flag = (!r.okNpv || !r.okBcr || !r.okRoi) ? "⚠︎" : "OK";
+      return `
+        <tr>
+          <td>${esc(r.name)}</td>
+          <td class="num">${money(r.pvB)}</td>
+          <td class="num">${money(r.pvC)}</td>
+          <td class="num">${money(r.npv)}</td>
+          <td class="num">${money(r.calcNpv)} <span class="muted small">(${isFiniteNum(r.diffNpv) ? (r.diffNpv >= 0 ? "+" : "") + money(r.diffNpv).replace("$","$") : "n/a"} diff)</span></td>
+          <td class="num">${flag}</td>
+          <td class="num">${isFiniteNum(r.calcBcr) ? fmt(r.calcBcr, 4) : "n/a"} <span class="muted small">${isFiniteNum(r.diffBcr) ? ("(" + (r.diffBcr >= 0 ? "+" : "") + fmt(r.diffBcr, 6) + ")") : ""}</span></td>
+          <td class="num">${isFiniteNum(r.calcRoi) ? percent(r.calcRoi) : "n/a"} <span class="muted small">${isFiniteNum(r.diffRoi) ? ("(" + (r.diffRoi >= 0 ? "+" : "") + fmt(r.diffRoi, 6) + ")") : ""}</span></td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  // ---------- TREATMENTS UI (COST BUILD-UP) ----------
+  function renderTreatments() {
+    const root = $("#treatmentsList");
+    if (!root) return;
+
+    const outputs = model.outputs;
+
+    root.innerHTML = model.treatments.map(t => {
+      const totals = computeTreatmentTotals(t);
+      const opPerHa = totals.opPerHa;
+      const opFarm = totals.opFarm;
+      const area = Number(t.areaHa) || 0;
+
+      const costRows = (t.opCostItems || []).map(it => `
+        <div class="row" style="gap:8px">
+          <div class="field" style="flex:1">
+            <label>Line item</label>
+            <input value="${esc(it.label)}" data-cost-label="${esc(t.id)}" data-item="${esc(it.id)}" />
+          </div>
+          <div class="field" style="width:180px">
+            <label>$/ha</label>
+            <input type="number" step="0.01" value="${Number(it.valuePerHa) || 0}" data-cost-val="${esc(t.id)}" data-item="${esc(it.id)}" />
+          </div>
+          <div class="field" style="width:150px">
+            <label>Category</label>
+            <select data-cost-cat="${esc(t.id)}" data-item="${esc(it.id)}">
+              <option value="Operating" ${it.category === "Operating" ? "selected" : ""}>Operating</option>
+              <option value="Labour" ${it.category === "Labour" ? "selected" : ""}>Labour</option>
+            </select>
+          </div>
+          <div class="field" style="width:110px">
+            <label>&nbsp;</label>
+            <button class="btn danger" type="button" data-del-cost="${esc(t.id)}" data-item="${esc(it.id)}">Remove</button>
+          </div>
+        </div>
+      `).join("");
+
+      const outputRows = outputs.map(o => `
+        <div class="field">
+          <label>${esc(o.name)} (${esc(o.unit)}) per ha</label>
+          <input type="number" step="0.0001" value="${Number((t.outputsPerHa || {})[o.id]) || 0}" data-out="${esc(t.id)}" data-outid="${esc(o.id)}" />
+        </div>
+      `).join("");
+
+      return `
+        <div class="card" data-treat="${esc(t.id)}">
+          <div class="row between">
+            <h3>${esc(t.name)} ${t.isControl ? '<span class="badge">Control (baseline)</span>' : ""}</h3>
+            <div class="row">
+              <button class="btn" type="button" data-set-control="${esc(t.id)}">Set as control</button>
+              <button class="btn danger" type="button" data-del-treatment="${esc(t.id)}">Remove</button>
+            </div>
+          </div>
+
+          <div class="row-3">
+            <div class="field">
+              <label>Treatment name</label>
+              <input value="${esc(t.name)}" data-tname="${esc(t.id)}" />
+            </div>
+            <div class="field">
+              <label>Area (ha)</label>
+              <input type="number" step="0.01" value="${area}" data-area="${esc(t.id)}" />
+            </div>
+            <div class="field">
+              <label>Replications aggregated</label>
+              <input value="${t.nReplicates || 1}" readonly />
+            </div>
+          </div>
+
+          <div class="row-3">
+            <div class="field">
+              <label>Capital cost ($, year 0)</label>
+              <input type="number" step="0.01" value="${Number(t.capitalCostY0) || 0}" data-cap="${esc(t.id)}" />
+            </div>
+            <div class="field">
+              <label>Total operating cost ($/ha)</label>
+              <input value="${fmt(opPerHa, 2)}" readonly />
+            </div>
+            <div class="field">
+              <label>Whole-farm operating cost ($/year)</label>
+              <input value="${money(opFarm)}" readonly />
+            </div>
+          </div>
+
+          <div class="callout">
+            <div><b>Cost build-up</b></div>
+            <div class="muted small">Edit line items; totals update automatically and flow through all PV / ROI calculations.</div>
+          </div>
+
+          <div>${costRows || '<div class="muted small">No operating cost items found. Add one below.</div>'}</div>
+
+          <div class="row">
+            <button class="btn" type="button" data-add-cost="${esc(t.id)}">Add operating cost line</button>
+          </div>
+
+          <div class="callout">
+            <div><b>Outputs (benefit drivers)</b></div>
+            <div class="muted small">Per-hectare output levels for this treatment (used with unit values from Settings).</div>
+          </div>
+
+          <div class="row-3">${outputRows}</div>
+
+          <div class="field">
+            <label>Notes</label>
+            <textarea rows="2" data-notes="${esc(t.id)}">${esc(t.notes || "")}</textarea>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    root.onclick = e => {
+      const del = e.target.closest("[data-del-treatment]");
+      if (del) {
+        const id = del.dataset.delTreatment;
+        if (!confirm("Remove this treatment?")) return;
+        model.treatments = model.treatments.filter(t => t.id !== id);
+        if (!model.treatments.some(t => t.isControl) && model.treatments.length) model.treatments[0].isControl = true;
+        audit("Treatment removed", id);
+        renderAll();
+        return;
+      }
+      const setC = e.target.closest("[data-set-control]");
+      if (setC) {
+        const id = setC.dataset.setControl;
+        model.treatments.forEach(t => t.isControl = (t.id === id));
+        audit("Control set", model.treatments.find(t => t.id === id)?.name || id);
+        renderAll();
+        return;
+      }
+      const addCost = e.target.closest("[data-add-cost]");
+      if (addCost) {
+        const id = addCost.dataset.addCost;
+        const t = model.treatments.find(x => x.id === id);
+        if (!t) return;
+        t.opCostItems = t.opCostItems || [];
+        t.opCostItems.push({ id: uid(), label: "New cost line", valuePerHa: 0, category: "Operating" });
+        audit("Cost line added", t.name);
+        renderAll();
+        return;
+      }
+      const delCost = e.target.closest("[data-del-cost]");
+      if (delCost) {
+        const tid = delCost.dataset.delCost;
+        const itemId = delCost.dataset.item;
+        const t = model.treatments.find(x => x.id === tid);
+        if (!t) return;
+        t.opCostItems = (t.opCostItems || []).filter(it => it.id !== itemId);
+        audit("Cost line removed", t.name);
+        renderAll();
+        return;
+      }
+    };
+
+    root.oninput = e => {
+      const tid =
+        e.target.dataset.tname ||
+        e.target.dataset.area ||
+        e.target.dataset.cap ||
+        e.target.dataset.notes ||
+        e.target.dataset.costLabel ||
+        e.target.dataset.costVal ||
+        e.target.dataset.costCat ||
+        e.target.dataset.out;
+
+      if (!tid) return;
+      const t = model.treatments.find(x => x.id === tid);
+      if (!t) return;
+
+      if (e.target.dataset.tname) t.name = e.target.value;
+      if (e.target.dataset.area) t.areaHa = +e.target.value;
+      if (e.target.dataset.cap) t.capitalCostY0 = +e.target.value;
+      if (e.target.dataset.notes) t.notes = e.target.value;
+
+      if (e.target.dataset.costLabel || e.target.dataset.costVal || e.target.dataset.costCat) {
+        const itemId = e.target.dataset.item;
+        const it = (t.opCostItems || []).find(x => x.id === itemId);
+        if (it) {
+          if (e.target.dataset.costLabel) it.label = e.target.value;
+          if (e.target.dataset.costVal) it.valuePerHa = +e.target.value;
+          if (e.target.dataset.costCat) it.category = e.target.value;
+        }
+      }
+
+      if (e.target.dataset.out) {
+        const outId = e.target.dataset.outid;
+        t.outputsPerHa = t.outputsPerHa || {};
+        t.outputsPerHa[outId] = +e.target.value;
+      }
+
+      renderResults();
+    };
+  }
+
+  // ---------- OUTPUTS UI ----------
+  function renderOutputs() {
+    const tbody = $("#outputsTable tbody");
+    if (!tbody) return;
+
+    tbody.innerHTML = model.outputs.map(o => `
+      <tr>
+        <td><input value="${esc(o.name)}" data-out-name="${esc(o.id)}" /></td>
+        <td><input value="${esc(o.unit)}" data-out-unit="${esc(o.id)}" /></td>
+        <td><input type="number" step="0.01" value="${Number(o.unitValue) || 0}" data-out-val="${esc(o.id)}" /></td>
+        <td><input value="${esc(o.source || "")}" data-out-src="${esc(o.id)}" /></td>
+      </tr>
+    `).join("");
+
+    tbody.oninput = e => {
+      const id =
+        e.target.dataset.outName ||
+        e.target.dataset.outUnit ||
+        e.target.dataset.outVal ||
+        e.target.dataset.outSrc;
+      if (!id) return;
+
+      const o = model.outputs.find(x => x.id === id);
+      if (!o) return;
+
+      if (e.target.dataset.outName) o.name = e.target.value;
+      if (e.target.dataset.outUnit) o.unit = e.target.value;
+      if (e.target.dataset.outVal) o.unitValue = +e.target.value;
+      if (e.target.dataset.outSrc) o.source = e.target.value;
+
+      renderResults();
+    };
+  }
+
+  // ---------- SETTINGS UI ----------
+  function bindSettings() {
+    $("#farmArea").value = model.settings.farmAreaHa;
+    $("#years").value = model.settings.years;
+    $("#discRate").value = model.settings.discountRatePct;
+    $("#adoption").value = model.settings.adoption;
+    $("#risk").value = model.settings.risk;
+    $("#tol").value = String(model.settings.reconTolerance);
+
+    const on = () => {
+      model.settings.farmAreaHa = +$("#farmArea").value;
+      model.settings.years = +$("#years").value;
+      model.settings.discountRatePct = +$("#discRate").value;
+      model.settings.adoption = +$("#adoption").value;
+      model.settings.risk = +$("#risk").value;
+      model.settings.reconTolerance = +$("#tol").value;
+
+      // Apply farm area to treatments by default (Excel-first contract, but allow per-treatment overrides)
+      model.treatments.forEach(t => {
+        if (!isFiniteNum(t.areaHa) || t.areaHa === 0) t.areaHa = model.settings.farmAreaHa;
+      });
+
+      renderTreatments();
+      renderResults();
+    };
+
+    ["farmArea","years","discRate","adoption","risk","tol"].forEach(id => {
+      $("#" + id).addEventListener("input", on);
+    });
+
+    $("#btnRecalc")?.addEventListener("click", () => {
+      renderAll();
+      showToast("Recalculated.");
+    });
+  }
+
+  // ---------- RESULTS RENDER ----------
+  function renderResults() {
+    const computed = computeAllMetrics(null);
+    renderLeaderboard(computed.rows);
+    renderComparisonTable(computed.rows);
+    renderBreakevenTable(); // based on current simulation sliders (if any)
+  }
+
+  // ---------- FILTER BUTTONS ----------
+  function bindResultsFilters() {
+    $("#filterAll").onclick = () => { RESULTS_FILTER.mode = "all"; renderResults(); };
+    $("#filterTopNpv").onclick = () => { RESULTS_FILTER.mode = "topnpv"; renderResults(); };
+    $("#filterTopBcr").onclick = () => { RESULTS_FILTER.mode = "topbcr"; renderResults(); };
+    $("#filterImprove").onclick = () => { RESULTS_FILTER.mode = "improve"; renderResults(); };
+  }
+
+  // ---------- EXCEL TEMPLATE (SCHEMA-BASED) ----------
+  function downloadTemplate() {
+    if (typeof XLSX === "undefined") {
+      alert("SheetJS (XLSX) is required.");
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+
+    const readme = XLSX.utils.aoa_to_sheet([
+      ["Farming CBA Decision Tool 2 – Excel template (schema-based)"],
+      [""],
+      ["Required columns (aliases accepted):"],
+      ["- Treatment name", "Amendment | Treatment | Treatment name | Name"],
+      ["- Yield (t/ha)", "Yield t/ha | Yield | Grain yield"],
+      [""],
+      ["All other numeric columns are treated as cost components by default (no omissions)."],
+      ["If your sheet includes non-cost numeric outcomes (e.g., protein), reclassify them as OUTPUT in the mapping table after upload."],
+      [""],
+      ["Aggregation rule:"],
+      ["Rows with the same treatment name are aggregated using the mean for numeric columns; replicate counts are recorded in the audit log."],
+      [""],
+      ["Units and formatting:"],
+      ["- Costs can be entered as numbers or formatted currency (e.g., $16,850.00)."],
+      ["- Blank numeric cells are treated as 0; the mapping report will flag heavy non-numeric cells."],
+    ]);
+    XLSX.utils.book_append_sheet(wb, readme, "Read Me");
+
+    // Example sheet using current treatment set (if present), else default
+    const baseRows = (model.importMeta.active.source === "default") ? DEFAULT_ROWS : (model.importMeta.aggregated?.treatments || []).map(t => ({
+      Amendment: t.name,
+      "Yield t/ha": (t.outputLevels && t.outputLevels["Yield t/ha"]) ? t.outputLevels["Yield t/ha"] : ""
+    }));
+    const sample = XLSX.utils.json_to_sheet(baseRows);
+    XLSX.utils.book_append_sheet(wb, sample, "Data");
+
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    downloadFile("farming_cba2_template.xlsx", wbout, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    audit("Template download", "Schema-based Excel template");
+  }
+
+  // ---------- EXCEL PARSE + MAPPING UI ----------
+  let parsed = null; // { fileName, sheetName, rows, headers, roles, colStats, validation }
+
+  function openFilePicker() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".xlsx,.xlsm,.xlsb";
+    input.style.display = "none";
+    document.body.appendChild(input);
+    input.addEventListener("change", async e => {
+      const file = e.target.files && e.target.files[0];
+      document.body.removeChild(input);
+      if (!file) return;
+      await parseExcelFile(file);
+    });
+    input.click();
+  }
+
+  async function parseExcelFile(file) {
+    if (typeof XLSX === "undefined") {
+      alert("SheetJS (XLSX) is required for Excel import.");
+      return;
+    }
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+
+      // Choose first sheet that contains required columns (if any), else first sheet.
+      let chosen = wb.SheetNames[0];
+      let chosenRows = null;
+      let chosenHeaders = null;
+
+      for (const sName of wb.SheetNames) {
+        const sheet = wb.Sheets[sName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+        const headers = rows.length ? Object.keys(rows[0]) : [];
+        const roles = detectMappingFromHeaders(headers);
+        const validation = validateImport(rows, headers, roles);
+        if (validation.ok) {
+          chosen = sName;
+          chosenRows = rows;
+          chosenHeaders = headers;
+          break;
+        }
+      }
+
+      if (!chosenRows) {
+        const sheet = wb.Sheets[chosen];
+        chosenRows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+        chosenHeaders = chosenRows.length ? Object.keys(chosenRows[0]) : [];
+      }
+
+      const roles = detectMappingFromHeaders(chosenHeaders);
+      const validation = validateImport(chosenRows, chosenHeaders, roles);
+      const colStats = validation.colStats;
+
+      parsed = {
+        fileName: file.name,
+        sheetName: chosen,
+        rows: chosenRows,
+        headers: chosenHeaders,
+        roles,
+        colStats,
+        validation
+      };
+
+      renderMappingUI();
+      $("#btnDiscardParsed").disabled = false;
+      $("#btnApplyImport").disabled = !validation.ok;
+
+      audit("Excel parsed", `${file.name} · sheet=${chosen} · rows=${chosenRows.length}`);
+      showToast(`Excel parsed. Using sheet "${chosen}".`);
+    } catch (err) {
+      console.error(err);
+      alert("Error parsing Excel file.");
+    }
+  }
+
+  function renderMappingUI() {
+    const summary = $("#validationSummary");
+    const tbody = $("#mappingTable tbody");
+    const errorsBox = $("#validationErrors");
+    const cal = $("#calibrationSummary");
+    if (!tbody || !summary) return;
+
+    if (!parsed) {
+      summary.textContent = "No file parsed yet.";
+      tbody.innerHTML = "";
+      errorsBox.classList.remove("show");
+      errorsBox.innerHTML = "";
+      return;
+    }
+
+    const { rows, headers, roles, colStats, validation } = parsed;
+
+    const errs = validation.errors || [];
+    summary.innerHTML = `
+      <div><b>File:</b> ${esc(parsed.fileName)} · <b>Sheet:</b> ${esc(parsed.sheetName)} · <b>Rows:</b> ${rows.length}</div>
+      <div class="muted small">Import status: ${validation.ok ? "<b>Ready to apply</b>" : "<b>Blocked by errors</b>"}</div>
+    `;
+
+    // Errors
+    if (errs.length) {
+      errorsBox.classList.add("show");
+      errorsBox.innerHTML = `<ul>${errs.map(e => `<li>${esc(e)}</li>`).join("")}</ul>`;
+    } else {
+      errorsBox.classList.remove("show");
+      errorsBox.innerHTML = "";
+    }
+
+    // Mapping table
+    tbody.innerHTML = headers.map(h => {
+      const role = roles[h]?.role || ROLE.COST_OPERATING;
+      const detected =
+        role === ROLE.TREATMENT ? "Treatment name" :
+        role === ROLE.OUTPUT ? "Output (benefit driver)" :
+        role === ROLE.COST_LABOUR ? "Cost (labour)" :
+        role === ROLE.COST_OPERATING ? "Cost (operating)" :
+        "Ignored";
+
+      const st = colStats[h];
+      const rate = st ? Math.round(st.rate * 100) : 0;
+
+      return `
+        <tr>
+          <td>${esc(h)}</td>
+          <td>${esc(detected)}</td>
+          <td class="num">${rate}%</td>
+          <td>
+            <select data-role="${esc(h)}">
+              <option value="${ROLE.TREATMENT}" ${role === ROLE.TREATMENT ? "selected" : ""}>Treatment name</option>
+              <option value="${ROLE.OUTPUT}" ${role === ROLE.OUTPUT ? "selected" : ""}>Output (benefit driver)</option>
+              <option value="${ROLE.COST_LABOUR}" ${role === ROLE.COST_LABOUR ? "selected" : ""}>Cost (labour)</option>
+              <option value="${ROLE.COST_OPERATING}" ${role === ROLE.COST_OPERATING ? "selected" : ""}>Cost (operating)</option>
+              <option value="${ROLE.IGNORE}" ${role === ROLE.IGNORE ? "selected" : ""}>Ignore</option>
+            </select>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    // Override change -> revalidate
+    tbody.onchange = e => {
+      const sel = e.target.closest("select[data-role]");
+      if (!sel) return;
+      const col = sel.dataset.role;
+      const role = sel.value;
+      parsed.roles[col] = parsed.roles[col] || {};
+      parsed.roles[col].role = role;
+
+      // If role becomes OUTPUT and it's yield-ish, map it to out_yield implicitly
+      if (role === ROLE.OUTPUT) {
+        const isYield = canonCol(col).includes("yield") || REQUIRED.yield.aliases.some(a => canonCol(col) === canonCol(a));
+        parsed.roles[col].outputId = isYield ? "out_yield" : null;
+      } else {
+        parsed.roles[col].outputId = null;
+      }
+
+      parsed.validation = validateImport(parsed.rows, parsed.headers, parsed.roles);
+      parsed.colStats = buildColumnStats(parsed.rows, parsed.headers, parsed.roles);
+
+      // Update apply button and re-render summary/error list quickly
+      $("#btnApplyImport").disabled = !parsed.validation.ok;
+      renderMappingUI();
+    };
+
+    // Calibration summary (preview)
+    if (cal) {
+      const agg = aggregateRows(rows, headers, roles);
+      const controlName = agg?.controlName || "Not detected";
+      const repCount = agg ? agg.treatments.reduce((s, t) => s + (t.nReplicates || 1), 0) : 0;
+
+      cal.innerHTML = `
+        <div><span class="k">Rows read</span><span class="v">${rows.length}</span></div>
+        <div><span class="k">Treatments</span><span class="v">${agg ? agg.treatments.length : "—"}</span></div>
+        <div><span class="k">Replications aggregated</span><span class="v">${agg ? repCount : "—"}</span></div>
+        <div><span class="k">Control detected</span><span class="v">${esc(controlName)}</span></div>
+        <div><span class="k">Sheet used</span><span class="v">${esc(parsed.sheetName)}</span></div>
+      `;
+    }
+  }
+
+  function applyParsedImport() {
+    if (!parsed) return;
+    const { rows, headers, roles, validation } = parsed;
+    if (!validation.ok) {
+      showToast("Cannot apply import until errors are fixed.");
+      return;
+    }
+
+    const agg = aggregateRows(rows, headers, roles);
+    if (!agg || !agg.treatments || !agg.treatments.length) {
+      showToast("Import produced no treatments.");
+      return;
+    }
+
+    const meta = {
+      source: "upload",
+      fileName: parsed.fileName,
+      sheetName: parsed.sheetName,
+      rowsRead: rows.length,
+      appliedAt: new Date().toISOString()
+    };
+
+    applyAggregatedToModel(agg, meta);
+    parsed = null;
+    renderMappingUI();
+    $("#btnApplyImport").disabled = true;
+    $("#btnDiscardParsed").disabled = true;
+    audit("Upload set as default", meta.fileName);
+  }
+
+  function discardParsed() {
+    parsed = null;
+    renderMappingUI();
+    $("#btnApplyImport").disabled = true;
+    $("#btnDiscardParsed").disabled = true;
+    showToast("Parsed file discarded.");
+  }
+
+  // ---------- SIMULATIONS (SLIDERS + BREAK-EVEN + SCENARIOS) ----------
+  const simState = {
+    grainPriceMult: 1,
+    yieldMult: 1,
+    costMult: 1,
+    discountRatePct: null,
+    adoption: null,
+    risk: null
+  };
+
+  function bindSimControls() {
+    const sPrice = $("#simGrainPrice");
+    const sYield = $("#simYield");
+    const sCosts = $("#simCosts");
+    const sDisc = $("#simDisc");
+    const sAdopt = $("#simAdopt");
+    const sRisk = $("#simRisk");
+
+    if (!sPrice) return;
+
+    const syncLabels = () => {
+      $("#simGrainPriceVal").textContent = fmt(simState.grainPriceMult, 2) + "×";
+      $("#simYieldVal").textContent = fmt(simState.yieldMult, 2) + "×";
+      $("#simCostsVal").textContent = fmt(simState.costMult, 2) + "×";
+      $("#simDiscVal").textContent = fmt(simState.discountRatePct ?? model.settings.discountRatePct, 2) + "%";
+      $("#simAdoptVal").textContent = fmt(simState.adoption ?? model.settings.adoption, 2);
+      $("#simRiskVal").textContent = fmt(simState.risk ?? model.settings.risk, 2);
+    };
+
+    const reset = () => {
+      simState.grainPriceMult = 1;
+      simState.yieldMult = 1;
+      simState.costMult = 1;
+      simState.discountRatePct = model.settings.discountRatePct;
+      simState.adoption = model.settings.adoption;
+      simState.risk = model.settings.risk;
+
+      sPrice.value = String(simState.grainPriceMult);
+      sYield.value = String(simState.yieldMult);
+      sCosts.value = String(simState.costMult);
+      sDisc.value = String(simState.discountRatePct);
+      sAdopt.value = String(simState.adoption);
+      sRisk.value = String(simState.risk);
+
+      syncLabels();
+      renderBreakevenTable();
+      showToast("Simulation sliders reset to base.");
+    };
+
+    // Init
+    sPrice.value = "1.00";
+    sYield.value = "1.00";
+    sCosts.value = "1.00";
+    sDisc.value = String(model.settings.discountRatePct);
+    sAdopt.value = String(model.settings.adoption);
+    sRisk.value = String(model.settings.risk);
+    reset();
+
+    const onInput = () => {
+      simState.grainPriceMult = +sPrice.value;
+      simState.yieldMult = +sYield.value;
+      simState.costMult = +sCosts.value;
+      simState.discountRatePct = +sDisc.value;
+      simState.adoption = +sAdopt.value;
+      simState.risk = +sRisk.value;
+      syncLabels();
+    };
+
+    [sPrice, sYield, sCosts, sDisc, sAdopt, sRisk].forEach(el => el.addEventListener("input", onInput));
+
+    $("#btnSimReset").onclick = reset;
+    $("#btnSimApplyToView").onclick = () => {
+      renderBreakevenTable();
+      showToast("Simulation outputs updated.");
+    };
+
+    $("#btnSaveScenario").onclick = () => saveScenario();
+  }
+
+  function buildSimulationScenario() {
+    // Override unit values: apply grain price multiplier to yield output only.
+    const unitValuesOverride = {};
+    model.outputs.forEach(o => {
+      unitValuesOverride[o.id] = Number(o.unitValue) || 0;
+    });
+    unitValuesOverride["out_yield"] = (Number(unitValuesOverride["out_yield"]) || 0) * simState.grainPriceMult;
+
+    // Override outputs: apply yield multiplier to all outputsPerHa (including yield)
+    // (This is intentionally broad and transparent; user can interpret as “good/bad year” scaling.)
+    const outputsOverrideByTid = new Map();
+    model.treatments.forEach(t => {
+      const o = {};
+      model.outputs.forEach(out => {
+        o[out.id] = (Number((t.outputsPerHa || {})[out.id]) || 0) * simState.yieldMult;
+      });
+      outputsOverrideByTid.set(t.id, o);
+    });
+
+    // Override costs: multiply operating costs by costMult
+    const costMult = simState.costMult;
+
+    return {
+      years: model.settings.years,
+      discountRatePct: simState.discountRatePct,
+      adoption: simState.adoption,
+      risk: simState.risk,
+      unitValuesOverride,
+      outputsOverrideByTid,
+      costMult
+    };
+  }
+
+  function computeMetricsForTreatmentUnderScenario(t, scenarioObj) {
+    // Apply scenario outputs override
+    const outputsOverride = scenarioObj.outputsOverrideByTid.get(t.id);
+
+    // Apply scenario unit values override
+    const unitValuesOverride = scenarioObj.unitValuesOverride;
+
+    // Apply scenario cost multiplier (operating costs only)
+    const tAdj = { ...t, opCostItems: (t.opCostItems || []).map(it => ({ ...it, valuePerHa: (Number(it.valuePerHa) || 0) * scenarioObj.costMult })) };
+
+    return computeMetricsForTreatment(tAdj, {
+      years: scenarioObj.years,
+      discountRatePct: scenarioObj.discountRatePct,
+      adoption: scenarioObj.adoption,
+      risk: scenarioObj.risk,
+      outputsOverride,
+      unitValuesOverride
+    });
+  }
+
+  function renderBreakevenTable() {
+    const tbody = $("#breakevenTable tbody");
+    if (!tbody) return;
+
+    const scenarioObj = buildSimulationScenario();
+    const control = model.treatments.find(t => t.isControl) || model.treatments[0];
+    if (!control) {
+      tbody.innerHTML = `<tr><td colspan="4" class="muted">No treatments available.</td></tr>`;
+      return;
+    }
+
+    // Control metrics under scenario
+    const cM = computeMetricsForTreatmentUnderScenario(control, scenarioObj);
+
+    const rows = model.treatments
+      .filter(t => !t.isControl)
+      .map(t => {
+        const baseM = computeMetricsForTreatmentUnderScenario(t, scenarioObj);
+
+        // Break-even 1: grain price multiplier for ΔNPV=0 vs control (bisection on yield unit value multiplier)
+        const priceBE = findBreakEvenPriceMultiplier(t, control, scenarioObj);
+
+        // Break-even 2: yield multiplier for BCR=1 (bisection on outputs multiplier)
+        const yieldBE = findBreakEvenYieldMultiplierForBcr1(t, scenarioObj);
+
+        // Break-even 3: cost reduction to reach ROI=0 (solve for cost multiplier where NPV=0)
+        const costRed = findCostReductionForRoi0(t, scenarioObj);
+
+        return {
+          name: t.name,
+          priceBE,
+          yieldBE,
+          costRed,
+          baseDeltaNpv: baseM.npv - cM.npv
+        };
+      })
+      .sort((a, b) => b.baseDeltaNpv - a.baseDeltaNpv);
+
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td><b>${esc(r.name)}</b></td>
+        <td class="num">${r.priceBE != null ? money(r.priceBE) : "n/a"}</td>
+        <td class="num">${r.yieldBE != null ? fmt(r.yieldBE, 2) + "×" : "n/a"}</td>
+        <td class="num">${r.costRed != null ? fmt(r.costRed, 1) + "%" : "n/a"}</td>
+      </tr>
+    `).join("");
+  }
+
+  function yieldUnitValueBase() {
+    const y = model.outputs.find(o => o.id === "out_yield");
+    return y ? Number(y.unitValue) || 0 : 0;
+  }
+
+  function findBreakEvenPriceMultiplier(t, control, scenarioObj) {
+    // Solve for grain price ($/t) that makes ΔNPV = 0 vs control, holding everything else in scenario fixed.
+    const basePrice = yieldUnitValueBase();
+    if (basePrice <= 0) return null;
+
+    const lo = 0; // $/t
+    let hi = basePrice * 10; // expand if needed
+
+    const f = (price) => {
+      const unitValuesOverride = { ...scenarioObj.unitValuesOverride, out_yield: price };
+      const sc = { ...scenarioObj, unitValuesOverride };
+
+      const cM = computeMetricsForTreatmentUnderScenario(control, sc);
+      const tM = computeMetricsForTreatmentUnderScenario(t, sc);
+      return (tM.npv - cM.npv);
+    };
+
+    let fLo = f(lo);
+    let fHi = f(hi);
+
+    // If already positive at lo (rare), return lo
+    if (isFiniteNum(fLo) && fLo >= 0) return lo;
+
+    // Expand hi until sign change or limit
+    let tries = 0;
+    while (tries < 12 && (!isFiniteNum(fHi) || fLo * fHi > 0)) {
+      hi *= 1.6;
+      fHi = f(hi);
+      tries++;
+    }
+    if (!isFiniteNum(fHi) || fLo * fHi > 0) return null;
+
+    // Bisection
+    let a = lo, b = hi;
+    for (let i = 0; i < 60; i++) {
+      const mid = (a + b) / 2;
+      const fm = f(mid);
+      if (!isFiniteNum(fm)) return null;
+      if (Math.abs(fm) < 1e-6) return mid;
+      if (fLo * fm <= 0) { b = mid; fHi = fm; }
+      else { a = mid; fLo = fm; }
+    }
+    return (a + b) / 2;
+  }
+
+  function findBreakEvenYieldMultiplierForBcr1(t, scenarioObj) {
+    // Solve for yield multiplier that makes BCR = 1 (holding costs).
+    const f = (mult) => {
+      const outputsOverrideByTid = new Map();
+      model.treatments.forEach(tt => {
+        const o = {};
+        model.outputs.forEach(out => {
+          o[out.id] = (Number((tt.outputsPerHa || {})[out.id]) || 0) * mult;
+        });
+        outputsOverrideByTid.set(tt.id, o);
+      });
+      const sc = { ...scenarioObj, outputsOverrideByTid };
+      const m = computeMetricsForTreatmentUnderScenario(t, sc);
+      return (m.bcr - 1);
+    };
+
+    let lo = 0.1, hi = 5.0;
+    let fLo = f(lo), fHi = f(hi);
+    if (!isFiniteNum(fLo) || !isFiniteNum(fHi)) return null;
+
+    if (fLo >= 0) return lo;
+    let tries = 0;
+    while (tries < 10 && fLo * fHi > 0) {
+      hi *= 1.6;
+      fHi = f(hi);
+      tries++;
+      if (!isFiniteNum(fHi)) return null;
+    }
+    if (fLo * fHi > 0) return null;
+
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      const fm = f(mid);
+      if (!isFiniteNum(fm)) return null;
+      if (Math.abs(fm) < 1e-6) return mid;
+      if (fLo * fm <= 0) { hi = mid; fHi = fm; }
+      else { lo = mid; fLo = fm; }
+    }
+    return (lo + hi) / 2;
+  }
+
+  function findCostReductionForRoi0(t, scenarioObj) {
+    // ROI=0 implies NPV=0 (when PV(C)>0). Solve for operating cost multiplier m such that NPV=0.
+    const f = (costMult) => {
+      const sc = { ...scenarioObj, costMult };
+      const m = computeMetricsForTreatmentUnderScenario(t, sc);
+      return m.npv; // want 0
+    };
+
+    let lo = 0.0, hi = 2.0;
+    let fLo = f(lo), fHi = f(hi);
+    if (!isFiniteNum(fLo) || !isFiniteNum(fHi)) return null;
+
+    // If NPV already >=0 at hi, then no reduction needed (could even increase)
+    if (fHi >= 0) return 0;
+
+    // If NPV <0 even at costMult=0, not solvable by cost reduction
+    if (fLo < 0) return null;
+
+    // Bisection to find m where NPV=0 between lo and hi
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      const fm = f(mid);
+      if (!isFiniteNum(fm)) return null;
+      if (Math.abs(fm) < 1e-6) {
+        const reductionPct = (1 - mid) * 100;
+        return clamp(reductionPct, 0, 100);
+      }
+      if (fLo * fm <= 0) { hi = mid; fHi = fm; }
+      else { lo = mid; fLo = fm; }
+    }
+    const m = (lo + hi) / 2;
+    const reductionPct = (1 - m) * 100;
+    return clamp(reductionPct, 0, 100);
+  }
+
+  // Saved scenarios
+  function loadScenarios() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.scenarios);
+      return raw ? (JSON.parse(raw) || []) : [];
+    } catch { return []; }
+  }
+  function saveScenarios(list) {
+    try { localStorage.setItem(STORAGE_KEYS.scenarios, JSON.stringify(list)); } catch {}
+  }
+
+  function saveScenario() {
+    const name = prompt("Scenario name (e.g., Dry year, High fuel cost, Lower market price):");
+    if (!name) return;
+    const s = {
+      id: uid(),
+      name: name.trim().slice(0, 60),
+      createdAt: new Date().toISOString(),
+      sliders: { ...simState },
+      settingsSnapshot: { ...model.settings }
+    };
+    const list = loadScenarios();
+    list.unshift(s);
+    saveScenarios(list.slice(0, 30));
+    renderScenarioList();
+    audit("Scenario saved", s.name);
+    showToast("Scenario saved.");
+  }
+
+  function renderScenarioList() {
+    const root = $("#scenarioList");
+    if (!root) return;
+    const list = loadScenarios();
+    if (!list.length) {
+      root.innerHTML = `<div class="muted small">No saved scenarios yet.</div>`;
+      return;
+    }
+    root.innerHTML = list.map(s => `
+      <div class="scenario">
+        <div class="name">${esc(s.name)}</div>
+        <div class="meta">${esc(new Date(s.createdAt).toLocaleString())}</div>
+        <div class="meta">Price× ${fmt(s.sliders.grainPriceMult,2)} · Yield× ${fmt(s.sliders.yieldMult,2)} · Cost× ${fmt(s.sliders.costMult,2)} · r ${fmt(s.sliders.discountRatePct,2)}%</div>
+        <div class="actions">
+          <button class="btn" type="button" data-load-scn="${esc(s.id)}">Load</button>
+          <button class="btn danger" type="button" data-del-scn="${esc(s.id)}">Delete</button>
+        </div>
+      </div>
+    `).join("");
+
+    root.onclick = e => {
+      const loadBtn = e.target.closest("[data-load-scn]");
+      const delBtn = e.target.closest("[data-del-scn]");
+      if (loadBtn) {
+        const id = loadBtn.dataset.loadScn;
+        const scn = list.find(x => x.id === id);
+        if (!scn) return;
+        // Apply sliders
+        Object.assign(simState, scn.sliders);
+
+        // Push to UI controls
+        $("#simGrainPrice").value = String(simState.grainPriceMult);
+        $("#simYield").value = String(simState.yieldMult);
+        $("#simCosts").value = String(simState.costMult);
+        $("#simDisc").value = String(simState.discountRatePct);
+        $("#simAdopt").value = String(simState.adoption);
+        $("#simRisk").value = String(simState.risk);
+        // Trigger label refresh
+        $("#simGrainPrice").dispatchEvent(new Event("input"));
+        renderBreakevenTable();
+        audit("Scenario loaded", scn.name);
+        showToast("Scenario loaded.");
+        return;
+      }
+      if (delBtn) {
+        const id = delBtn.dataset.delScn;
+        const kept = list.filter(x => x.id !== id);
+        saveScenarios(kept);
+        renderScenarioList();
+        audit("Scenario deleted", id);
+        showToast("Scenario deleted.");
+      }
+    };
+  }
+
+  // ---------- AI PROMPT ----------
+  function topDriversForTreatment(t) {
+    // Costs: top 3 line items by $/ha
+    const costItems = (t.opCostItems || []).slice().sort((a, b) => (Number(b.valuePerHa)||0) - (Number(a.valuePerHa)||0)).slice(0, 3);
+    // Benefits: top outputs by contribution per ha
+    const out = model.outputs.map(o => {
+      const level = Number((t.outputsPerHa || {})[o.id]) || 0;
+      const v = Number(o.unitValue) || 0;
+      return { name: o.name, unit: o.unit, level, unitValue: v, perHaValue: level * v };
+    }).sort((a, b) => b.perHaValue - a.perHaValue).slice(0, 3);
+
+    return {
+      topCostsPerHa: costItems.map(x => ({ label: x.label, category: x.category, valuePerHa: Number(x.valuePerHa) || 0 })),
+      topBenefitsPerHa: out.map(x => ({ output: x.name, unit: x.unit, levelPerHa: x.level, unitValue: x.unitValue, valuePerHa: x.perHaValue }))
+    };
+  }
+
+  function buildComparisonCompactJSON() {
+    const computed = computeAllMetrics(null);
+    const control = computed.control;
+    const rows = computed.rows;
+
+    const out = rows.map(r => ({
+      treatment: r.t.name,
+      isControl: r.t.isControl,
+      rank: r.rank,
+      pvBenefits: r.m.pvBenefits,
+      pvCosts: r.m.pvCosts,
+      npv: r.m.npv,
+      bcr: r.m.bcr,
+      roiPct: r.m.roi,
+      deltaVsControl: control ? {
+        pvBenefits: r.m.pvBenefits - computed.controlMetrics.pvBenefits,
+        pvCosts: r.m.pvCosts - computed.controlMetrics.pvCosts,
+        npv: r.m.npv - computed.controlMetrics.npv
+      } : null
+    }));
+
+    return { control: control ? control.name : null, rows: out };
+  }
+
+  function buildAIPromptText() {
+    const computed = computeAllMetrics(null);
+    const compact = buildComparisonCompactJSON();
+
+    const drivers = model.treatments.map(t => ({
+      treatment: t.name,
+      isControl: t.isControl,
+      drivers: topDriversForTreatment(t)
+    }));
+
+    const promptObj = {
+      tool: model.toolName,
+      version: TOOL_VERSION,
+      scenarioSettings: { ...model.settings },
+      importMeta: { ...model.importMeta.active },
+      comparisonToControl: compact,
+      treatmentDrivers: drivers,
+      instructions: [
+        "Write in plain language for a farmer or on-farm manager. Avoid jargon.",
+        "Explain PV Benefits, PV Costs, NPV, BCR, ROI in practical terms.",
+        "Compare each treatment to the control. Highlight whether a treatment wins by lifting benefits, cutting costs, or both.",
+        "Do not recommend a choice and do not impose rules or thresholds.",
+        "For low BCR or negative ΔNPV vs control, suggest improvement options framed as possibilities (reduce costs, improve yield, improve price outcomes, improve implementation efficiency, agronomy options).",
+        "Note uncertainty and what assumptions drive results."
+      ]
+    };
+
+    return JSON.stringify(promptObj, null, 2);
+  }
+
+  function bindAI() {
+    $("#btnBuildPrompt").onclick = () => {
+      const text = buildAIPromptText();
+      $("#aiPrompt").value = text;
+      audit("AI prompt built", "Prompt generated");
+      showToast("AI prompt generated.");
+    };
+
+    $("#btnCopyPrompt").onclick = async () => {
+      const text = $("#aiPrompt").value || buildAIPromptText();
+      $("#aiPrompt").value = text;
+      try {
+        await navigator.clipboard.writeText(text);
+        audit("AI prompt copied", "Clipboard");
+        showToast("Copied to clipboard.");
+      } catch {
+        showToast("Copy failed. You can manually copy from the box.");
+      }
+    };
+
+    $("#btnExportAIPack").onclick = () => {
+      const text = $("#aiPrompt").value || buildAIPromptText();
+      exportExcelWorkbook({ includeAIPromptOnly: true, aiPromptText: text });
+      audit("AI brief pack exported", "Excel");
+    };
+  }
+
+  // ---------- EXPORTS ----------
+  function downloadFile(filename, content, mime) {
+    const blob = new Blob([content], { type: mime || "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
+  }
+
+  function exportExcelWorkbook(opts = {}) {
+    if (typeof XLSX === "undefined") {
+      alert("SheetJS (XLSX) is required for Excel export.");
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+
+    const computed = computeAllMetrics(null);
+    const control = computed.control;
+    const rows = computed.rows;
+
+    // Results sheet: tidy comparison table
+    const indicators = [
+      { k: "pvBenefits", label: "PV Benefits", fmt: money },
+      { k: "pvCosts", label: "PV Costs", fmt: money },
+      { k: "npv", label: "NPV", fmt: money },
+      { k: "bcr", label: "BCR", fmt: v => (isFiniteNum(v) ? fmt(v, 4) : "") },
+      { k: "roi", label: "ROI (%)", fmt: v => (isFiniteNum(v) ? fmt(v, 4) : "") },
+      { k: "rank", label: "Rank", fmt: v => (v == null ? "" : String(v)) },
+      { k: "deltaNpv", label: "ΔNPV vs Control", fmt: money },
+      { k: "deltaPvCost", label: "ΔPV Cost vs Control", fmt: money }
+    ];
+
+    const header = ["Indicator", "Control (baseline)"];
+    const nonControl = rows.filter(r => !r.t.isControl);
+    nonControl.forEach(r => {
+      header.push(r.t.name);
+      header.push(r.t.name + " Δ vs control");
+      header.push(r.t.name + " Δ%");
+    });
+
+    const aoa = [header];
+    indicators.forEach(ind => {
+      const row = [ind.label];
+      const c = rows.find(r => r.t.isControl) || null;
+      row.push(c ? (ind.k === "deltaNpv" || ind.k === "deltaPvCost" ? ind.fmt(0) : ind.k === "rank" ? "Baseline" : ind.fmt(c.m[ind.k] ?? c[ind.k])) : "");
+
+      nonControl.forEach(r => {
+        // value
+        let v;
+        if (ind.k === "deltaNpv") v = control ? (r.m.npv - computed.controlMetrics.npv) : NaN;
+        else if (ind.k === "deltaPvCost") v = control ? (r.m.pvCosts - computed.controlMetrics.pvCosts) : NaN;
+        else if (ind.k === "rank") v = r.rank;
+        else v = r.m[ind.k];
+
+        row.push(ind.fmt(v));
+
+        // delta
+        let d = "";
+        if (control && ind.k !== "rank" && ind.k !== "deltaNpv" && ind.k !== "deltaPvCost") {
+          const base = computed.controlMetrics[ind.k];
+          if (isFiniteNum(v) && isFiniteNum(base)) {
+            const dv = v - base;
+            d = (ind.k === "bcr" || ind.k === "roi") ? fmt(dv, 4) : money(dv);
+          }
+        }
+        row.push(d);
+
+        // delta %
+        let p = "";
+        if (control && ind.k !== "rank" && ind.k !== "deltaNpv" && ind.k !== "deltaPvCost") {
+          const base = computed.controlMetrics[ind.k];
+          if (isFiniteNum(v) && isFiniteNum(base) && Math.abs(base) > 1e-12) {
+            p = fmt(((v - base) / base) * 100, 2) + "%";
+          }
+        }
+        row.push(p);
+      });
+
+      aoa.push(row);
+    });
+
+    const wsResults = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb, wsResults, "Results");
+
+    if (!opts.includeAIPromptOnly) {
+      // Inputs sheet
+      const inputs = [];
+      inputs.push(["Treatment", "IsControl", "Area(ha)", "CapitalCostY0"]);
+      // add outputs columns
+      model.outputs.forEach(o => inputs[0].push(`${o.name} (${o.unit}) per ha`));
+      // add cost items collapsed (total op cost/ha + list)
+      inputs[0].push("Total operating cost ($/ha)");
+      inputs[0].push("Operating cost line items (label: $/ha)");
+
+      model.treatments.forEach(t => {
+        const totals = computeTreatmentTotals(t);
+        const row = [t.name, t.isControl ? 1 : 0, t.areaHa, t.capitalCostY0];
+        model.outputs.forEach(o => row.push(Number((t.outputsPerHa || {})[o.id]) || 0));
+        row.push(totals.opPerHa);
+        row.push((t.opCostItems || []).map(it => `${it.label}: ${Number(it.valuePerHa)||0}`).join(" | "));
+        inputs.push(row);
+      });
+
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(inputs), "Inputs");
+
+      // Assumptions
+      const ass = [
+        ["Tool", model.toolName],
+        ["Version", TOOL_VERSION],
+        ["Import source", model.importMeta.active.source],
+        ["Import file", model.importMeta.active.fileName],
+        ["Sheet", model.importMeta.active.sheetName],
+        ["Rows read", model.importMeta.active.rowsRead],
+        ["Applied at", model.importMeta.active.appliedAt],
+        [""],
+        ["Farm area (ha)", model.settings.farmAreaHa],
+        ["Time horizon (years)", model.settings.years],
+        ["Discount rate (% p.a.)", model.settings.discountRatePct],
+        ["Adoption", model.settings.adoption],
+        ["Risk", model.settings.risk]
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ass), "Assumptions");
+
+      // Simulations (saved scenarios)
+      const scn = loadScenarios();
+      const scnAoa = [["Scenario", "CreatedAt", "PriceMult", "YieldMult", "CostMult", "DiscountRate", "Adoption", "Risk"]];
+      scn.forEach(s => {
+        scnAoa.push([s.name, s.createdAt, s.sliders.grainPriceMult, s.sliders.yieldMult, s.sliders.costMult, s.sliders.discountRatePct, s.sliders.adoption, s.sliders.risk]);
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(scnAoa), "Simulations");
+
+      // Audit log
+      const aud = [["Time", "Action", "Details"]];
+      auditLog.slice().reverse().forEach(a => aud.push([a.ts, a.action, a.details]));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aud), "AuditLog");
+    }
+
+    // AI Prompt
+    const promptText = opts.aiPromptText || ($("#aiPrompt")?.value || buildAIPromptText());
+    const wsAI = XLSX.utils.aoa_to_sheet([["AI_Prompt_JSON"], [promptText]]);
+    XLSX.utils.book_append_sheet(wb, wsAI, "AI_Prompt");
+
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    downloadFile("farming_cba2_export.xlsx", wbout, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    showToast("Excel exported.");
+  }
+
+  function bindExports() {
+    $("#btnExportExcel").onclick = () => {
+      exportExcelWorkbook();
+      audit("Excel export", "Workbook exported");
+    };
+    $("#btnPrintFull").onclick = () => {
+      try { localStorage.setItem(STORAGE_KEYS.printMode, "full"); } catch {}
+      audit("Print", "Results (full)");
+      window.print();
+    };
+    $("#btnPrintCondensed").onclick = () => {
+      try { localStorage.setItem(STORAGE_KEYS.printMode, "condensed"); } catch {}
+      audit("Print", "Results (condensed)");
+      // In this simple build, condensed uses same print but user can hide by CSS if extended; we keep audit.
+      window.print();
+    };
+  }
+
+  // ---------- HOME/HEADER BUTTONS ----------
+  function resetToDefaultDataset() {
+    const headers = Object.keys(DEFAULT_ROWS[0] || {});
+    const roles = detectMappingFromHeaders(headers);
+    const validation = validateImport(DEFAULT_ROWS, headers, roles);
+    if (!validation.ok) {
+      alert("Default dataset failed validation, which should not happen.");
+      return;
+    }
+    const agg = aggregateRows(DEFAULT_ROWS, headers, roles);
+    const meta = { source: "default", fileName: "Default dataset", sheetName: "Default", rowsRead: DEFAULT_ROWS.length, appliedAt: new Date().toISOString() };
+    applyAggregatedToModel(agg, meta);
+    audit("Reset to default dataset", "Default dataset applied");
+  }
+
+  // ---------- DATA TAB BINDINGS ----------
+  function bindDataTab() {
+    $("#btnChooseExcel").onclick = openFilePicker;
+    $("#btnApplyImport").onclick = applyParsedImport;
+    $("#btnDiscardParsed").onclick = discardParsed;
+    $("#btnDownloadTemplate").onclick = downloadTemplate;
+  }
+
+  // ---------- RESULTS TAB STYLES (linklike buttons) ----------
+  function injectLinklikeStyle() {
+    const style = document.createElement("style");
+    style.textContent = `
+      .linklike{
+        border:none;
+        background:transparent;
+        color:#fff;
+        font-weight:900;
+        padding:0;
+        cursor:pointer;
+        text-align:left;
+      }
+      .linklike:focus{outline:none; box-shadow: var(--focus); border-radius:8px}
+    `;
+    document.head.appendChild(style);
+  }
+
+  // ---------- RENDER ALL ----------
+  function renderAll() {
+    $("#toolVersionBadge").textContent = "v" + TOOL_VERSION;
+    renderOutputs();
+    renderTreatments();
+    renderResults();
+    renderScenarioList();
+    renderAudit();
+  }
+
+  // ---------- INIT ----------
+  function init() {
+    loadAudit();
+    initTabs();
+    injectLinklikeStyle();
+
+    // Header actions
+    $("#resetToDefault").onclick = () => resetToDefaultDataset();
+    $("#restoreLastUpload").onclick = () => restoreLastSuccessfulUpload();
+    $("#btnClearAudit").onclick = () => {
+      if (!confirm("Clear audit log in this browser?")) return;
+      auditLog = [];
+      try { localStorage.removeItem(STORAGE_KEYS.audit); } catch {}
+      renderAudit();
+      showToast("Audit log cleared.");
+    };
+
+    // Buttons
+    bindDataTab();
+    bindSettings();
+    bindResultsFilters();
+    bindSimControls();
+    bindAI();
+    bindExports();
+
+    // Add output / treatment
+    $("#btnAddOutput").onclick = () => {
+      const id = "out_" + uid();
+      model.outputs.push({ id, name: "New output", unit: "unit/ha", unitValue: 0, source: "Input Directly" });
+      // Add to treatments
+      model.treatments.forEach(t => {
+        t.outputsPerHa = t.outputsPerHa || {};
+        t.outputsPerHa[id] = 0;
+      });
+      audit("Output added", id);
+      renderAll();
+    };
+
+    $("#btnAddTreatment").onclick = () => {
+      const farmArea = Number(model.settings.farmAreaHa) || 0;
+      const t = {
+        id: uid(),
+        name: "New treatment",
+        isControl: false,
+        areaHa: farmArea,
+        adoption: 1,
+        capitalCostY0: 0,
+        opCostItems: [{ id: uid(), label: "New cost line", valuePerHa: 0, category: "Operating" }],
+        outputsPerHa: Object.fromEntries(model.outputs.map(o => [o.id, 0])),
+        nReplicates: 1,
+        notes: ""
+      };
+      model.treatments.push(t);
+      audit("Treatment added", t.name);
+      renderAll();
+    };
+
+    // Apply default dataset at startup (and treat it as active default)
+    resetToDefaultDataset();
+
+    // Map UI state
+    renderMappingUI();
+
+    // Print mode hint (optional, for future extension)
+    try {
+      const pm = localStorage.getItem(STORAGE_KEYS.printMode);
+      if (pm) audit("Print mode set (remembered)", pm);
+    } catch {}
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
 })();
