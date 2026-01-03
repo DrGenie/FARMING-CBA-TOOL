@@ -3,197 +3,572 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Farming CBA Decision Tool 2</title>
-  <link rel="stylesheet" href="styles.css" />
-
-  <!-- SheetJS for Excel upload/export -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js" defer></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Farming CBA Decision Aid</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <!-- SheetJS (XLSX) for client-side Excel import + export -->
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="./app.js"></script>
 </head>
-
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="mark">F</div>
-      <div class="brand-text">
-        <div class="title">Farming CBA Decision Tool 2</div>
-        <div class="subtitle">Compare treatments against a control, using an Excel-first workflow</div>
+  <header class="app-header">
+    <div class="app-header__left">
+      <div class="brand">
+        <div class="brand__mark" aria-hidden="true">F</div>
+        <div class="brand__text">
+          <div class="brand__title">Farming CBA Decision Aid</div>
+          <div class="brand__subtitle">Import data, map fields, run full CBA (PV benefits/costs, NPV, BCR, ROI), export to Excel</div>
+        </div>
       </div>
     </div>
 
-    <div class="actions">
-      <label class="file-pill">
-        <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
-        <span>Upload Excel</span>
-      </label>
-      <span class="status" id="uploadStatus">No file loaded</span>
-      <button class="btn" id="btnTemplate" type="button">Download template</button>
-      <button class="btn ghost" id="btnResetSample" type="button">Load embedded sample</button>
-      <button class="btn primary" id="btnRun" type="button">Run analysis</button>
+    <div class="app-header__right">
+      <div class="pill" id="datasetPill" title="Dataset status">No data loaded</div>
+      <button class="btn btn--ghost" id="btnReset" type="button" title="Reset tool">Reset</button>
     </div>
   </header>
 
-  <main class="shell">
-    <nav class="tabs" aria-label="Tool tabs">
-      <button class="tab-btn active" data-tab="tab-overview" type="button">Overview</button>
-      <button class="tab-btn" data-tab="tab-data" type="button">Data</button>
-      <button class="tab-btn" data-tab="tab-assumptions" type="button">Assumptions</button>
-      <button class="tab-btn" data-tab="tab-results" type="button">Results</button>
-      <button class="tab-btn" data-tab="tab-sensitivity" type="button">Sensitivity</button>
-      <button class="tab-btn" data-tab="tab-export" type="button">Export</button>
-      <button class="tab-btn" data-tab="tab-help" type="button">Help</button>
-    </nav>
+  <nav class="tabs" role="tablist" aria-label="Tool sections">
+    <button class="tab is-active" role="tab" aria-selected="true" aria-controls="panel-import" id="tab-import" data-tab="import" type="button">Import</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-mapping" id="tab-mapping" data-tab="mapping" type="button">Mapping</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-assumptions" id="tab-assumptions" data-tab="assumptions" type="button">Assumptions</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-results" id="tab-results" data-tab="results" type="button">Results</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-cashflows" id="tab-cashflows" data-tab="cashflows" type="button">Cashflows</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-sensitivity" id="tab-sensitivity" data-tab="sensitivity" type="button">Sensitivity</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-export" id="tab-export" data-tab="export" type="button">Export</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-help" id="tab-help" data-tab="help" type="button">Help</button>
+  </nav>
 
-    <section id="tab-overview" class="tab-panel active">
-      <div class="grid2">
+  <main class="main">
+    <!-- Import -->
+    <section class="panel is-active" role="tabpanel" id="panel-import" aria-labelledby="tab-import" data-panel="import">
+      <div class="grid grid--2">
         <div class="card">
-          <h2>What this tool does</h2>
-          <p>
-            This tool compares every treatment against a nominated control. The main Results table uses a vertical layout:
-            indicators are rows and treatments are columns, so you can scan each indicator across all options quickly.
-          </p>
-          <p class="muted">
-            You can upload either (i) a trial-style worksheet that contains “Amendment” and “Yield t/ha”, or (ii) the provided
-            CBA template with “Treatment, Year, Benefit, Cost”.
-          </p>
-          <div class="callout">
-            <strong>Tip:</strong> If you upload your trial spreadsheet, the tool summarises yields and costs by treatment, then
-            converts yield differences into dollar benefits using the price you set under Assumptions.
+          <div class="card__header">
+            <h2 class="card__title">Import Excel</h2>
+            <div class="card__subtitle">Choose an .xlsx file. The tool will detect the header row, then suggest field mappings.</div>
+          </div>
+
+          <div class="card__body">
+            <div class="stack">
+              <div class="row">
+                <label class="label" for="fileInput">Excel file (.xlsx)</label>
+                <input id="fileInput" class="file" type="file" accept=".xlsx,.xls" />
+              </div>
+
+              <div class="row row--wrap">
+                <button class="btn" id="btnLoadBundledXlsx" type="button">Load bundled XLSX (optional)</button>
+                <button class="btn btn--secondary" id="btnLoadEmbedded" type="button">Load embedded Lockhart sample</button>
+              </div>
+
+              <div class="callout">
+                <div class="callout__title">Bundled file option</div>
+                <div class="callout__text">
+                  If you want auto-load on GitHub Pages, place an Excel file in the same folder and name it <code>data.xlsx</code>.
+                  “Load bundled XLSX” tries <code>./data.xlsx</code> then <code>./Data for Lockhart-FA-031225 (1).xlsx</code>.
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="kpi-grid">
+                <div class="kpi">
+                  <div class="kpi__label">Rows</div>
+                  <div class="kpi__value" id="kpiRows">0</div>
+                </div>
+                <div class="kpi">
+                  <div class="kpi__label">Treatments</div>
+                  <div class="kpi__value" id="kpiTreatments">0</div>
+                </div>
+                <div class="kpi">
+                  <div class="kpi__label">Detected baseline</div>
+                  <div class="kpi__value kpi__value--mono" id="kpiBaseline">—</div>
+                </div>
+                <div class="kpi">
+                  <div class="kpi__label">Yield / Cost keys</div>
+                  <div class="kpi__value kpi__value--mono" id="kpiKeys">—</div>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="row row--wrap">
+                <button class="btn" id="btnGoMapping" type="button">Next: Mapping</button>
+                <button class="btn btn--ghost" id="btnGoResults" type="button">Jump to Results</button>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="card">
-          <h2>Current dataset</h2>
-          <div class="kv">
-            <div class="k">Source</div><div class="v" id="dataSource">—</div>
-            <div class="k">Detected format</div><div class="v" id="dataFormat">—</div>
-            <div class="k">Control</div><div class="v" id="controlName">—</div>
+          <div class="card__header">
+            <h2 class="card__title">Data preview</h2>
+            <div class="card__subtitle">First rows from the imported sheet.</div>
           </div>
-          <p class="muted">
-            If a file fails to load, go to the Data tab to see the detailed error message.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <section id="tab-data" class="tab-panel">
-      <div id="errorBox" class="error">
-        <div class="error-head">
-          <strong>Upload error</strong>
-          <button id="btnDismissError" class="btn tiny ghost" type="button">Dismiss</button>
-        </div>
-        <pre class="error-body" id="errorText"></pre>
-      </div>
-
-      <div class="card">
-        <h2>Loaded data preview</h2>
-        <p class="muted">
-          Trial uploads are shown as treatment-level summaries (mean yield and mean cost per hectare). Template uploads are
-          summarised after you run the analysis.
-        </p>
-        <div id="treatmentList"></div>
-      </div>
-    </section>
-
-    <section id="tab-assumptions" class="tab-panel">
-      <div class="card">
-        <h2>Assumptions</h2>
-        <div class="form-grid">
-          <label>
-            Discount rate (%)
-            <input id="discountRate" type="number" step="0.1" min="0" max="50" />
-          </label>
-
-          <label>
-            Horizon (years)
-            <input id="horizonYears" type="number" step="1" min="1" max="50" />
-          </label>
-
-          <label>
-            Benefit duration (years)
-            <input id="benefitYears" type="number" step="1" min="0" max="50" />
-          </label>
-
-          <label>
-            Benefit decay per year (% of previous year)
-            <input id="benefitDecay" type="number" step="1" min="0" max="100" />
-            <span class="hint">100 = no decay, 90 = 10% smaller each year</span>
-          </label>
-
-          <label>
-            Price (AUD per tonne)
-            <input id="pricePerTonne" type="number" step="1" min="0" />
-          </label>
-
-          <label class="check">
-            <input id="includeOpCost" type="checkbox" />
-            Include annual operating cost difference (optional)
-          </label>
-
-          <label>
-            Annual operating cost difference (AUD/ha/year)
-            <input id="annualOpCost" type="number" step="1" />
-            <span class="hint">Use this only if the treatment changes annual operating costs relative to control.</span>
-          </label>
-        </div>
-        <div class="muted">
-          Definitions: NPV = PV Benefits − PV Costs. BCR = PV Benefits ÷ PV Costs. ROI = NPV ÷ PV Costs.
-        </div>
-      </div>
-    </section>
-
-    <section id="tab-results" class="tab-panel">
-      <div class="card">
-        <div class="row">
-          <h2>Results</h2>
-          <div class="row-actions">
-            <button class="btn" id="btnCopyResults" type="button" disabled>Copy table</button>
-            <button class="btn primary" id="btnExportResults" type="button" disabled>Export Excel</button>
+          <div class="card__body">
+            <div class="muted" id="previewNote">No data yet. Import an Excel file or load the embedded sample.</div>
+            <div class="table-wrap" id="previewTableWrap" hidden></div>
           </div>
         </div>
-        <div id="resultsBox"></div>
       </div>
-    </section>
 
-    <section id="tab-sensitivity" class="tab-panel">
-      <div id="sensitivityBox"></div>
-    </section>
-
-    <section id="tab-export" class="tab-panel">
-      <div class="card">
-        <h2>Export options</h2>
-        <p>
-          Use “Export Excel” on the Results tab to export a clean workbook containing the assumptions and the results table.
-          Use “Copy table” to paste directly into Word.
-        </p>
-        <div class="callout">
-          If you want to work Excel-first, download the template, fill it, then upload it back. The tool will detect the
-          template and compute PV benefits and PV costs from your year-by-year inputs.
+      <div class="card" style="margin-top:14px;">
+        <div class="card__header">
+          <h2 class="card__title">Detected columns</h2>
+          <div class="card__subtitle">These populate the Mapping tab drop-downs.</div>
+        </div>
+        <div class="card__body">
+          <div class="chips" id="columnsChips"></div>
         </div>
       </div>
     </section>
 
-    <section id="tab-help" class="tab-panel">
-      <div class="card">
-        <h2>How to use</h2>
-        <ol class="steps">
-          <li>Upload an Excel file (either your trial sheet or the template).</li>
-          <li>Check the Data tab to confirm the control and treatment summaries look right.</li>
-          <li>Set Assumptions (discount rate, horizon, price, and benefit duration).</li>
-          <li>Click Run analysis.</li>
-          <li>Copy the Results table into Word or export to Excel.</li>
-        </ol>
+    <!-- Mapping -->
+    <section class="panel" role="tabpanel" id="panel-mapping" aria-labelledby="tab-mapping" data-panel="mapping">
+      <div class="grid grid--2">
+        <div class="card">
+          <div class="card__header">
+            <h2 class="card__title">Field mapping</h2>
+            <div class="card__subtitle">Confirm which columns represent treatment, yield, and costs. Changes apply instantly.</div>
+          </div>
+          <div class="card__body">
+            <div class="form-grid">
+              <div class="row">
+                <label class="label" for="mapTreatment">Treatment / amendment column</label>
+                <select id="mapTreatment" class="select"></select>
+                <div class="hint">Used to group observations into treatments.</div>
+              </div>
 
-        <h3>Common issues</h3>
-        <p class="muted">
-          If your trial spreadsheet has different header text, rename your columns to include “Amendment” and “Yield t/ha”.
-          For costs, the tool prefers a column named “|” (as in the Lockhart file) or “Treatment Input Cost Only /Ha”.
-        </p>
+              <div class="row">
+                <label class="label" for="mapBaseline">Baseline (control) treatment</label>
+                <select id="mapBaseline" class="select"></select>
+                <div class="hint">All incremental results are computed relative to this baseline.</div>
+              </div>
+
+              <div class="row">
+                <label class="label" for="mapYield">Yield column (t/ha)</label>
+                <select id="mapYield" class="select"></select>
+              </div>
+
+              <div class="row">
+                <label class="label" for="mapCost">Total cost column (per ha)</label>
+                <select id="mapCost" class="select"></select>
+                <div class="hint">If your sheet has multiple cost components, pick the total (or closest proxy). You can still scale it in Assumptions.</div>
+              </div>
+
+              <div class="row">
+                <label class="label" for="mapOptional1">Optional column: protein / quality / other</label>
+                <select id="mapOptional1" class="select"></select>
+                <div class="hint">Optional. Used only for reporting (does not affect CBA unless you choose to value it later).</div>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="row row--wrap">
+              <button class="btn" id="btnGoAssumptions" type="button">Next: Assumptions</button>
+              <button class="btn btn--ghost" id="btnGoImport" type="button">Back to Import</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__header">
+            <h2 class="card__title">Treatment list</h2>
+            <div class="card__subtitle">Edit adoption and multipliers per treatment for flexibility.</div>
+          </div>
+          <div class="card__body">
+            <div class="callout">
+              <div class="callout__title">How to use this table</div>
+              <div class="callout__text">
+                Adoption affects whole-farm totals. Yield and cost multipliers let you stress test the trial-based differences without editing the Excel file.
+                “Cost timing” controls whether incremental costs are one-off (setup) or annual.
+              </div>
+            </div>
+
+            <div class="table-wrap" id="treatmentsConfigWrap"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Assumptions -->
+    <section class="panel" role="tabpanel" id="panel-assumptions" aria-labelledby="tab-assumptions" data-panel="assumptions">
+      <div class="grid grid--2">
+        <div class="card">
+          <div class="card__header">
+            <h2 class="card__title">Economic settings</h2>
+            <div class="card__subtitle">These drive PV calculations and whole-farm totals.</div>
+          </div>
+          <div class="card__body">
+            <div class="form-grid">
+              <div class="row">
+                <label class="label" for="assumpArea">Farm area (ha)</label>
+                <input id="assumpArea" class="input" type="number" min="0" step="1" />
+              </div>
+
+              <div class="row">
+                <label class="label" for="assumpHorizon">Time horizon (years)</label>
+                <input id="assumpHorizon" class="input" type="number" min="1" step="1" />
+              </div>
+
+              <div class="row">
+                <label class="label" for="assumpDiscount">Discount rate (% per year)</label>
+                <input id="assumpDiscount" class="input" type="number" min="0" step="0.1" />
+              </div>
+
+              <div class="row">
+                <label class="label" for="assumpPrice">Grain price in Year 1 ($/t)</label>
+                <input id="assumpPrice" class="input" type="number" min="0" step="1" />
+              </div>
+
+              <div class="row">
+                <label class="label" for="assumpPriceGrowth">Real price growth (% per year)</label>
+                <input id="assumpPriceGrowth" class="input" type="number" step="0.1" />
+                <div class="hint">Set to 0 for constant real price.</div>
+              </div>
+
+              <div class="row">
+                <label class="label" for="assumpYieldScale">Yield scale</label>
+                <select id="assumpYieldScale" class="select">
+                  <option value="1">Use as-is</option>
+                  <option value="0.1">× 0.1</option>
+                  <option value="10">× 10</option>
+                </select>
+              </div>
+
+              <div class="row">
+                <label class="label" for="assumpCostScale">Cost scale</label>
+                <select id="assumpCostScale" class="select">
+                  <option value="1">Use as-is</option>
+                  <option value="0.01">× 0.01</option>
+                  <option value="100">× 100</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="row row--wrap">
+              <button class="btn" id="btnGoResults2" type="button">Run analysis: Results</button>
+              <button class="btn btn--ghost" id="btnResetAssumptions" type="button">Reset assumptions</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__header">
+            <h2 class="card__title">Effect persistence</h2>
+            <div class="card__subtitle">How long yield benefits last and how they decay.</div>
+          </div>
+          <div class="card__body">
+            <div class="form-grid">
+              <div class="row">
+                <label class="label" for="assumpBenefitStart">Benefits start in year</label>
+                <input id="assumpBenefitStart" class="input" type="number" min="1" step="1" />
+              </div>
+
+              <div class="row">
+                <label class="label" for="assumpDuration">Effect duration (years)</label>
+                <input id="assumpDuration" class="input" type="number" min="1" step="1" />
+              </div>
+
+              <div class="row">
+                <label class="label" for="assumpDecay">Decay shape</label>
+                <select id="assumpDecay" class="select">
+                  <option value="none">No decay (flat within duration)</option>
+                  <option value="linear">Linear decay to zero by end of duration</option>
+                  <option value="exp">Exponential decay</option>
+                </select>
+              </div>
+
+              <div class="row" id="halfLifeRow" hidden>
+                <label class="label" for="assumpHalfLife">Half-life (years)</label>
+                <input id="assumpHalfLife" class="input" type="number" min="0.1" step="0.1" />
+                <div class="hint">Only used when decay is exponential.</div>
+              </div>
+
+              <div class="row">
+                <label class="label" for="assumpCostTimingDefault">Default incremental cost timing</label>
+                <select id="assumpCostTimingDefault" class="select">
+                  <option value="y1_only">Year 1 only (default)</option>
+                  <option value="y0_only">Year 0 only (setup)</option>
+                  <option value="annual_duration">Annual during effect duration</option>
+                  <option value="annual_horizon">Annual for full horizon</option>
+                  <option value="split_50_50">Split 50% Year 0, 50% Year 1</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="sanity" id="sanityBox">
+              <div class="muted">Load data to see diagnostics.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section class="panel" role="tabpanel" id="panel-results" aria-labelledby="tab-results" data-panel="results">
+      <div class="card">
+        <div class="card__header">
+          <h2 class="card__title">Core results</h2>
+          <div class="card__subtitle">All treatments are compared against the baseline. Control is included as a column.</div>
+        </div>
+        <div class="card__body">
+          <div class="toolbar">
+            <div class="toolbar__group">
+              <label class="label" for="resultMetric">Rank by</label>
+              <select id="resultMetric" class="select">
+                <option value="npv">NPV</option>
+                <option value="bcr">BCR</option>
+                <option value="roi">ROI</option>
+              </select>
+            </div>
+
+            <div class="toolbar__group">
+              <label class="label" for="resultView">View</label>
+              <select id="resultView" class="select">
+                <option value="whole_farm">Whole-farm totals</option>
+                <option value="per_ha">Per hectare</option>
+              </select>
+            </div>
+
+            <div class="toolbar__spacer"></div>
+
+            <div class="toolbar__group">
+              <button class="btn btn--secondary" id="btnGoCashflows" type="button">Cashflows</button>
+            </div>
+          </div>
+
+          <h3 class="h3">Vertical CBA table (indicators as rows)</h3>
+          <div class="table-wrap" id="cbaVerticalWrap"></div>
+
+          <div class="grid grid--2" style="margin-top:14px;">
+            <div class="card card--inner">
+              <div class="card__header">
+                <h3 class="card__title">Treatment summary (trial means)</h3>
+                <div class="card__subtitle">Yield and cost means by treatment; deltas vs baseline.</div>
+              </div>
+              <div class="card__body">
+                <div class="table-wrap" id="trialSummaryWrap"></div>
+              </div>
+            </div>
+
+            <div class="card card--inner">
+              <div class="card__header">
+                <h3 class="card__title">NPV chart</h3>
+                <div class="card__subtitle">Ranked by the current “Rank by” setting.</div>
+              </div>
+              <div class="card__body">
+                <canvas id="npvChart" width="900" height="420" class="canvas"></canvas>
+                <div class="note">Chart uses whole-farm NPV unless you switch to per hectare in the “View” control.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="note" id="resultsNote">
+            Definitions: PV benefits and PV costs are discounted sums. NPV = PV benefits − PV costs. BCR = PV benefits ÷ PV costs. ROI = NPV ÷ PV costs.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cashflows -->
+    <section class="panel" role="tabpanel" id="panel-cashflows" aria-labelledby="tab-cashflows" data-panel="cashflows">
+      <div class="grid grid--2">
+        <div class="card">
+          <div class="card__header">
+            <h2 class="card__title">Cashflows by year</h2>
+            <div class="card__subtitle">Inspect the annual benefit/cost streams used in PV calculations.</div>
+          </div>
+          <div class="card__body">
+            <div class="toolbar">
+              <div class="toolbar__group toolbar__group--wide">
+                <label class="label" for="cashflowTreatment">Treatment</label>
+                <select id="cashflowTreatment" class="select"></select>
+              </div>
+              <div class="toolbar__spacer"></div>
+              <div class="toolbar__group">
+                <button class="btn btn--ghost" id="btnBackToResults" type="button">Back to Results</button>
+              </div>
+            </div>
+
+            <div class="table-wrap" id="cashflowsTableWrap"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__header">
+            <h2 class="card__title">Cashflow chart</h2>
+            <div class="card__subtitle">Net cashflow by year (undiscounted), plus PV summary.</div>
+          </div>
+          <div class="card__body">
+            <canvas id="cashflowChart" width="900" height="420" class="canvas"></canvas>
+            <div class="divider"></div>
+            <div class="kpi-grid kpi-grid--2" style="grid-template-columns: repeat(4, minmax(0,1fr));">
+              <div class="kpi">
+                <div class="kpi__label">PV benefits</div>
+                <div class="kpi__value" id="cfPvBenefits">—</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi__label">PV costs</div>
+                <div class="kpi__value" id="cfPvCosts">—</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi__label">NPV</div>
+                <div class="kpi__value" id="cfNpv">—</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi__label">BCR</div>
+                <div class="kpi__value" id="cfBcr">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sensitivity -->
+    <section class="panel" role="tabpanel" id="panel-sensitivity" aria-labelledby="tab-sensitivity" data-panel="sensitivity">
+      <div class="card">
+        <div class="card__header">
+          <h2 class="card__title">Sensitivity analysis</h2>
+          <div class="card__subtitle">One-way sensitivity on key drivers. Runs instantly using the current baseline and mappings.</div>
+        </div>
+        <div class="card__body">
+          <div class="grid grid--2">
+            <div class="card card--inner">
+              <div class="card__header">
+                <h3 class="card__title">Settings</h3>
+                <div class="card__subtitle">Choose a treatment and define low/high scenarios.</div>
+              </div>
+              <div class="card__body">
+                <div class="form-grid">
+                  <div class="row">
+                    <label class="label" for="sensTreatment">Treatment</label>
+                    <select id="sensTreatment" class="select"></select>
+                  </div>
+
+                  <div class="row">
+                    <label class="label" for="sensMetric">Metric</label>
+                    <select id="sensMetric" class="select">
+                      <option value="npv">NPV</option>
+                      <option value="bcr">BCR</option>
+                      <option value="roi">ROI</option>
+                    </select>
+                  </div>
+
+                  <div class="row">
+                    <label class="label" for="sensPricePct">Price change (± %)</label>
+                    <input id="sensPricePct" class="input" type="number" step="1" />
+                  </div>
+
+                  <div class="row">
+                    <label class="label" for="sensCostPct">Incremental cost multiplier (± %)</label>
+                    <input id="sensCostPct" class="input" type="number" step="1" />
+                  </div>
+
+                  <div class="row">
+                    <label class="label" for="sensYieldPct">Incremental yield multiplier (± %)</label>
+                    <input id="sensYieldPct" class="input" type="number" step="1" />
+                  </div>
+
+                  <div class="row">
+                    <label class="label" for="sensDiscountPts">Discount rate change (± percentage points)</label>
+                    <input id="sensDiscountPts" class="input" type="number" step="0.1" />
+                  </div>
+
+                  <div class="row">
+                    <label class="label" for="sensDurationDelta">Effect duration change (± years)</label>
+                    <input id="sensDurationDelta" class="input" type="number" step="1" />
+                  </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="row row--wrap">
+                  <button class="btn" id="btnRunSensitivity" type="button">Run sensitivity</button>
+                  <button class="btn btn--ghost" id="btnResetSensitivity" type="button">Reset</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card card--inner">
+              <div class="card__header">
+                <h3 class="card__title">Results</h3>
+                <div class="card__subtitle">Low vs base vs high for each driver.</div>
+              </div>
+              <div class="card__body">
+                <div class="table-wrap" id="sensitivityWrap"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="row row--wrap">
+            <button class="btn btn--secondary" id="btnSensitivityExportXlsx" type="button">Download sensitivity (XLSX)</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Export -->
+    <section class="panel" role="tabpanel" id="panel-export" aria-labelledby="tab-export" data-panel="export">
+      <div class="card">
+        <div class="card__header">
+          <h2 class="card__title">Export</h2>
+          <div class="card__subtitle">Download a clean Excel workbook (results, cashflows, assumptions, raw data) and CSV copies.</div>
+        </div>
+        <div class="card__body">
+          <div class="row row--wrap">
+            <button class="btn" id="btnExportXlsx" type="button">Download Excel workbook (XLSX)</button>
+            <button class="btn btn--secondary" id="btnExportVerticalCsv" type="button">Download vertical CBA table (CSV)</button>
+            <button class="btn btn--ghost" id="btnExportTrialSummaryCsv" type="button">Download trial summary (CSV)</button>
+            <button class="btn btn--ghost" id="btnExportStateJson" type="button">Download state (JSON)</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="muted">
+            The Excel export includes: Assumptions, TrialMeans, CBA_Vertical, Cashflows (for all treatments), Sensitivity (last run), RawData.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Help -->
+    <section class="panel" role="tabpanel" id="panel-help" aria-labelledby="tab-help" data-panel="help">
+      <div class="card">
+        <div class="card__header">
+          <h2 class="card__title">Help</h2>
+          <div class="card__subtitle">How the tool works and how to keep it flexible without editing Excel.</div>
+        </div>
+        <div class="card__body">
+          <div class="prose">
+            <p>
+              This tool reads your first worksheet, auto-detects the header row, and builds treatment means. The Mapping tab lets you override what “treatment”, “yield”, and “total cost”
+              mean, without changing your spreadsheet.
+            </p>
+            <p>
+              The CBA uses incremental yield (t/ha) and incremental cost (/ha) relative to the baseline treatment. Benefits are valued using your grain price assumptions and
+              an effect persistence model (duration and decay). Costs can be timed (Year 1 only, Year 0 only, annual) and can be overridden by treatment.
+            </p>
+            <p>
+              Use the treatment configuration table to set adoption rates (whole-farm scaling), and to stress-test trial differences using yield and cost multipliers.
+              Export produces a clean workbook for copy-paste into Word and audit trails.
+            </p>
+          </div>
+        </div>
       </div>
     </section>
   </main>
 
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <div class="toast__content" id="toastText"></div>
+  </div>
 </body>
 </html>
