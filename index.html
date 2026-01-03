@@ -1,411 +1,217 @@
-<!-- index.html -->
+<!-- index.html – Farming CBA Decision Tool 2 (fully functional) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Farming CBA Decision Tool 2</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-shell">
-    <header class="app-header">
-      <div class="app-header-main">
-        <h1>Farming CBA Decision Tool 2</h1>
-        <p class="app-tagline">
-          Compare present value (PV) benefits and costs across farm treatments, using results already calculated in Excel.
-        </p>
+<div class="app">
+  <header class="app-header">
+    <div class="app-header-main">
+      <div class="app-title-block">
+        <div class="app-logo-circle">F</div>
+        <div>
+          <h1>Farming CBA Decision Tool 2</h1>
+          <p>Compare long-run economic performance of farm investments</p>
+        </div>
       </div>
-      <div class="app-header-meta">
-        <div class="badge badge-primary">Snapshot-first</div>
-        <div class="badge badge-soft">Excel-first workflow</div>
-        <div class="badge badge-soft">Farmer-friendly outputs</div>
+      <div class="app-header-actions">
+        <button id="btn-load-demo" type="button" class="btn btn-ghost">Load demo farm</button>
+        <button id="btn-print" type="button" class="btn btn-ghost">Print</button>
       </div>
-    </header>
+    </div>
+    <div class="app-header-sub">
+      <p>
+        Enter present value (PV) benefits and PV costs for each treatment, then review the
+        results matrix, snapshots, and farmer-friendly summary.
+      </p>
+    </div>
+  </header>
 
-    <nav class="tab-nav" aria-label="Main sections">
-      <button class="tab-button active" data-tab-target="inputs">1. Inputs</button>
-      <button class="tab-button" data-tab-target="results">2. Results matrix</button>
-      <button class="tab-button" data-tab-target="snapshot">3. Snapshot &amp; print</button>
-      <button class="tab-button" data-tab-target="excel">4. Excel &amp; export</button>
-      <button class="tab-button" data-tab-target="ai-helper">5. AI helper</button>
-    </nav>
+  <nav class="tabs">
+    <button class="tab-button active" data-tab="inputs">1. Inputs</button>
+    <button class="tab-button" data-tab="results">2. Results matrix</button>
+    <button class="tab-button" data-tab="snapshots">3. Treatment snapshots</button>
+    <button class="tab-button" data-tab="excel">4. Excel & export</button>
+    <button class="tab-button" data-tab="helper">5. Interpretation helper</button>
+  </nav>
 
-    <main class="app-main">
-      <!-- INPUTS TAB -->
-      <section id="tab-inputs" class="tab-panel active" aria-label="Inputs">
-        <div class="layout-two-col">
-          <section class="card">
-            <header class="card-header">
-              <h2>1. Farm and analysis settings</h2>
-            </header>
-            <div class="card-body grid-form">
-              <div class="form-group">
-                <label for="farmName">
-                  Farm / project name
-                  <span class="tooltip" data-tooltip="Optional label shown on snapshots and exports.">
-                    ?
-                  </span>
-                </label>
-                <input id="farmName" type="text" placeholder="e.g. North paddock upgrade" />
-              </div>
-
-              <div class="form-group">
-                <label for="timeHorizon">
-                  Time horizon used in Excel (years)
-                  <span class="tooltip" data-tooltip="Number of years used when calculating PV benefits and PV costs in your spreadsheet.">
-                    ?
-                  </span>
-                </label>
-                <input id="timeHorizon" type="number" min="1" step="1" />
-              </div>
-
-              <div class="form-group">
-                <label for="discountRate">
-                  Discount rate used in Excel (% per year)
-                  <span class="tooltip" data-tooltip="The discount rate already used in your PV calculations (e.g. 7%). The tool does not recalculate PVs, it just uses the PV figures you enter.">
-                    ?
-                  </span>
-                </label>
-                <input id="discountRate" type="number" min="0" step="0.1" />
-              </div>
-
-              <div class="form-group">
-                <label for="currency">
-                  Currency
-                  <span class="tooltip" data-tooltip="Short code or symbol used in your Excel sheet, shown on all outputs.">
-                    ?
-                  </span>
-                </label>
-                <input id="currency" type="text" maxlength="6" placeholder="e.g. AUD or $" />
-              </div>
-
-              <div class="form-group">
-                <label for="notes">
-                  Notes for this analysis
-                  <span class="tooltip" data-tooltip="Optional short note about assumptions or context. Appears on the snapshot and AI helper tabs.">
-                    ?
-                  </span>
-                </label>
-                <textarea id="notes" rows="3" placeholder="Key assumptions, reference to your Excel file, or anything you want to remember."></textarea>
-              </div>
-            </div>
-          </section>
-
-          <section class="card">
-            <header class="card-header">
-              <div class="card-header-main">
-                <h2>2. Quick guidance</h2>
-                <p class="card-subtitle">
-                  Use your Excel workbook for detailed PV calculations. This tool keeps the summary clear and farmer-friendly.
-                </p>
-              </div>
-              <div class="card-header-actions">
-                <button id="loadDemoBtn" class="btn btn-secondary" type="button">
-                  Load example data
-                </button>
-                <button id="resetToolBtn" class="btn btn-secondary" type="button">
-                  Reset to blank
-                </button>
-              </div>
-            </header>
-            <div class="card-body guidance-text">
-              <p>
-                This tool summarises <strong>PV benefits</strong> and <strong>PV costs</strong> you have already calculated in Excel.
-                It does not change your numbers; it simply:
-              </p>
-              <ul>
-                <li>Calculates <strong>NPV</strong> (PV benefits minus PV costs) for each treatment.</li>
-                <li>Calculates <strong>BCR</strong> (PV benefits divided by PV costs).</li>
-                <li>Calculates <strong>ROI</strong> (NPV per dollar of PV cost).</li>
-                <li>Compares each treatment with the <strong>control</strong>.</li>
-              </ul>
-              <p>
-                Use your Excel workbook to work out PV benefits and PV costs for each treatment, including all components
-                such as yield, cost savings, risk reduction, and environmental benefits. Then paste those numbers into the table below.
-              </p>
-              <p class="muted">
-                The tool highlights trade-offs and differences. It does <strong>not</strong> tell you what to choose or set any pass/fail rule.
-              </p>
-            </div>
-          </section>
+  <main class="app-main">
+    <!-- Inputs panel -->
+    <section id="tab-inputs" class="tab-panel active">
+      <div class="card">
+        <div class="card-header">
+          <h2>Economic inputs by treatment</h2>
+          <p>
+            Each row is a treatment or strategy. Use present value (PV) benefits and PV costs for the whole analysis period
+            (for example 10–20 years, discounted using your preferred rate).
+          </p>
         </div>
 
-        <section class="card card-wide">
-          <header class="card-header">
-            <div class="card-header-main">
-              <h2>3. PV benefits and PV costs by treatment</h2>
-              <p class="card-subtitle">
-                Enter PV figures from your Excel sheet. You can add or remove treatments as needed.
-              </p>
-            </div>
-            <div class="card-header-actions">
-              <button id="addTreatmentBtn" class="btn btn-secondary" type="button">
-                + Add treatment
-              </button>
-            </div>
-          </header>
+        <div class="card-toolbar">
+          <div class="toolbar-left">
+            <button id="btn-add-treatment" type="button" class="btn btn-primary">Add treatment</button>
+            <button id="btn-update-results" type="button" class="btn btn-secondary">Update results</button>
+          </div>
+          <div class="toolbar-right">
+            <button id="btn-clear-all" type="button" class="btn btn-danger-outline">Clear all</button>
+          </div>
+        </div>
 
-          <div class="card-body">
-            <div class="table-wrapper">
-              <table class="table table-input" aria-label="PV inputs per treatment">
-                <thead>
-                  <tr>
-                    <th>Role</th>
-                    <th>Treatment name</th>
-                    <th>
-                      PV benefits: market &amp; yield
-                      <span class="tooltip" data-tooltip="PV of extra revenue from yield or price gains. Calculated in Excel.">
-                        ?
-                      </span>
-                    </th>
-                    <th>
-                      PV benefits: cost savings
-                      <span class="tooltip" data-tooltip="PV of reduced input, labour, or maintenance costs. Calculated in Excel.">
-                        ?
-                      </span>
-                    </th>
-                    <th>
-                      PV benefits: risk &amp; resilience
-                      <span class="tooltip" data-tooltip="PV of avoided losses or improved resilience (e.g. fewer crop failures).">
-                        ?
-                      </span>
-                    </th>
-                    <th>
-                      PV benefits: environmental &amp; other
-                      <span class="tooltip" data-tooltip="PV of environmental, soil, or other quantified benefits.">
-                        ?
-                      </span>
-                    </th>
-                    <th>
-                      PV costs: total
-                      <span class="tooltip" data-tooltip="PV of all costs, including upfront capital, operating, and maintenance costs.">
-                        ?
-                      </span>
-                    </th>
-                    <th>
-                      Remove
-                    </th>
-                  </tr>
-                </thead>
-                <tbody id="treatmentsTbody">
-                  <!-- Filled by script.js -->
-                </tbody>
-              </table>
-            </div>
+        <div class="table-wrapper">
+          <table class="table">
+            <thead>
+            <tr>
+              <th>Treatment name</th>
+              <th>PV benefits<br><span class="th-sub">All years, in your currency</span></th>
+              <th>PV costs<br><span class="th-sub">All years, in your currency</span></th>
+              <th>Notes / description</th>
+              <th></th>
+            </tr>
+            </thead>
+            <tbody id="inputs-tbody">
+            <!-- rows created by script.js -->
+            </tbody>
+          </table>
+        </div>
 
-            <p class="muted table-hint">
-              All PV figures should be in the <strong>same currency</strong> and calculated with the
-              <strong>same discount rate and time horizon</strong> you entered above.
+        <div class="card-footer">
+          <p>
+            Tip: If your CBA is in Excel, sum discounted benefits and costs across years for each treatment and paste those PV totals here.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results matrix panel -->
+    <section id="tab-results" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <h2>Results matrix</h2>
+          <p>
+            Results are ranked by net present value (NPV). These are decision support numbers rather than hard rules.
+          </p>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="table table-compact">
+            <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Treatment</th>
+              <th>PV benefits</th>
+              <th>PV costs</th>
+              <th>NPV</th>
+              <th>BCR</th>
+              <th>ROI</th>
+            </tr>
+            </thead>
+            <tbody id="results-tbody">
+            <!-- rows rendered by script.js -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card-footer card-footer-grid">
+          <div>
+            <h3>Key economic measures</h3>
+            <p>
+              NPV is PV benefits minus PV costs. BCR is PV benefits divided by PV costs.
+              ROI is NPV divided by PV costs. A higher value usually means a stronger economic case,
+              but you should also consider risk, fit with your farm, and practical constraints.
             </p>
           </div>
-        </section>
-      </section>
-
-      <!-- RESULTS TAB -->
-      <section id="tab-results" class="tab-panel" aria-label="Results matrix">
-        <section class="card card-wide">
-          <header class="card-header">
-            <div class="card-header-main">
-              <h2>Results matrix</h2>
-              <p class="card-subtitle">
-                Summary of PV benefits, PV costs, NPV, benefit–cost ratio (BCR), and return on investment (ROI).
-              </p>
-            </div>
-            <div class="card-header-actions">
-              <button id="refreshResultsBtn" class="btn btn-secondary" type="button">
-                Refresh results
-              </button>
-            </div>
-          </header>
-
-          <div class="card-body">
-            <div class="summary-strip" id="headlineSummary">
-              <!-- Filled by script.js -->
-            </div>
-
-            <div class="table-wrapper">
-              <table class="table table-results" aria-label="Results matrix">
-                <thead>
-                  <tr>
-                    <th>Role</th>
-                    <th>Treatment</th>
-                    <th>PV benefits (total)</th>
-                    <th>PV costs (total)</th>
-                    <th>NPV</th>
-                    <th>BCR</th>
-                    <th>ROI</th>
-                    <th>Δ NPV vs control</th>
-                    <th>Δ PV benefits vs control</th>
-                    <th>Δ PV costs vs control</th>
-                  </tr>
-                </thead>
-                <tbody id="resultsTbody">
-                  <!-- Filled by script.js -->
-                </tbody>
-              </table>
-            </div>
-
-            <p class="muted" id="resultsHint"></p>
+          <div class="note-box">
+            <strong>Reminder</strong>
+            <p>
+              The tool does not tell you what to choose. It highlights how each treatment performs
+              financially in present value terms so you can weigh this alongside agronomic and personal factors.
+            </p>
           </div>
-        </section>
-      </section>
+        </div>
+      </div>
+    </section>
 
-      <!-- SNAPSHOT TAB -->
-      <section id="tab-snapshot" class="tab-panel" aria-label="Snapshot and print">
-        <section class="card card-wide snapshot-card" id="snapshotCard">
-          <header class="card-header">
-            <div class="card-header-main">
-              <h2>Snapshot summary</h2>
-              <p class="card-subtitle">
-                Print-friendly summary of the analysis for discussion with farmers and advisers.
-              </p>
-            </div>
-            <div class="card-header-actions">
-              <button id="printSnapshotBtn" class="btn btn-primary" type="button">
-                Print / Save as PDF
-              </button>
-            </div>
-          </header>
+    <!-- Treatment snapshots panel -->
+    <section id="tab-snapshots" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <h2>Treatment snapshots</h2>
+          <p>Plain-language summaries for each treatment, based on your numbers.</p>
+        </div>
 
-          <div class="card-body snapshot-body">
-            <section class="snapshot-section" id="snapshotContext">
-              <!-- Filled by script.js -->
-            </section>
+        <div id="snapshots-container" class="snapshots-grid">
+          <!-- snapshot cards rendered by script.js -->
+        </div>
+      </div>
+    </section>
 
-            <section class="snapshot-section">
-              <h3>Headline results</h3>
-              <div id="snapshotHeadline">
-                <!-- Filled by script.js -->
-              </div>
-            </section>
+    <!-- Excel & export panel -->
+    <section id="tab-excel" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <h2>Excel workflow and exports</h2>
+          <p>
+            Keep your detailed CBA in Excel and use this tool as a clean results front-end.
+          </p>
+        </div>
 
-            <section class="snapshot-section">
-              <h3>Treatment-by-treatment summary</h3>
-              <div class="table-wrapper">
-                <table class="table table-compact" aria-label="Snapshot results">
-                  <thead>
-                    <tr>
-                      <th>Role</th>
-                      <th>Treatment</th>
-                      <th>PV benefits</th>
-                      <th>PV costs</th>
-                      <th>NPV</th>
-                      <th>BCR</th>
-                      <th>ROI</th>
-                    </tr>
-                  </thead>
-                  <tbody id="snapshotTbody">
-                    <!-- Filled by script.js -->
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section class="snapshot-section">
-              <h3>How to read these numbers</h3>
-              <ul class="snapshot-explainer">
-                <li><strong>NPV</strong> is PV benefits minus PV costs. A higher NPV means a larger net gain above the control under your assumptions.</li>
-                <li><strong>BCR</strong> is PV benefits divided by PV costs. Values above 1 mean benefits exceed costs, but the size of that margin still matters.</li>
-                <li><strong>ROI</strong> is NPV divided by PV costs. It shows the net gain per dollar of PV cost.</li>
-                <li>
-                  Results depend entirely on the PV figures entered from Excel. If key assumptions change (prices, yields, input costs, failure rates),
-                  update the Excel sheet and refresh this tool.
-                </li>
-                <li>
-                  Use these results to discuss trade-offs. They highlight which treatments deliver more or less value, but they do not replace local knowledge,
-                  risk preferences, or non-monetary considerations.
-                </li>
-              </ul>
-            </section>
+        <div class="excel-layout">
+          <div class="excel-step">
+            <h3>1. Keep full CBA in Excel</h3>
+            <p>
+              Use Excel or another spreadsheet to model annual yields, prices, variable costs, and capital
+              spending for each treatment. Apply your discount rate and horizon to calculate PV benefits
+              and PV costs for every treatment.
+            </p>
           </div>
-        </section>
-      </section>
-
-      <!-- EXCEL & EXPORT TAB -->
-      <section id="tab-excel" class="tab-panel" aria-label="Excel and export">
-        <section class="card card-wide">
-          <header class="card-header">
-            <div class="card-header-main">
-              <h2>Excel link and export</h2>
-              <p class="card-subtitle">
-                Copy results into Excel or another program, and keep a clean record of your assumptions and outputs.
-              </p>
-            </div>
-            <div class="card-header-actions">
-              <button id="copyTsvBtn" class="btn btn-primary" type="button">
-                Copy results (tab-separated)
-              </button>
-            </div>
-          </header>
-
-          <div class="card-body">
-            <section class="excel-section">
-              <h3>Current results table (copy-friendly)</h3>
-              <textarea id="excelExportArea" class="excel-textarea" rows="10" spellcheck="false"></textarea>
-              <p class="muted">
-                Select all and copy, or use the “Copy results” button above. Paste into Excel, Google Sheets, R, or Stata as a tab-separated table.
-              </p>
-            </section>
-
-            <section class="excel-section">
-              <h3>Checklist for your Excel workbook</h3>
-              <ul>
-                <li>Make sure all PV benefits and PV costs are in the same currency and price year.</li>
-                <li>Confirm that the same discount rate and time horizon are used for all treatments.</li>
-                <li>Where possible, separate benefits into market, cost savings, risk/resilience, and environmental/other in Excel, then sum to the PV totals used here.</li>
-                <li>Keep a clear link between this tool and the exact sheet or file name used for the PV calculations.</li>
-              </ul>
-            </section>
+          <div class="excel-step">
+            <h3>2. Paste PV totals here</h3>
+            <p>
+              For each treatment, copy the PV benefits and PV costs from your spreadsheet into this tool’s
+              input table. Use a consistent currency and discount rate across all treatments.
+            </p>
           </div>
-        </section>
-      </section>
-
-      <!-- AI HELPER TAB -->
-      <section id="tab-ai-helper" class="tab-panel" aria-label="AI helper">
-        <section class="card card-wide">
-          <header class="card-header">
-            <div class="card-header-main">
-              <h2>AI helper prompt</h2>
-              <p class="card-subtitle">
-                Use this text with your preferred AI assistant to generate a two to three page, farmer-friendly interpretation.
-              </p>
-            </div>
-            <div class="card-header-actions">
-              <button id="refreshAiHelperBtn" class="btn btn-secondary" type="button">
-                Refresh AI prompt
-              </button>
-            </div>
-          </header>
-
-          <div class="card-body">
-            <section class="ai-section">
-              <h3>Instructions</h3>
-              <p>
-                The text below summarises your farm, assumptions, and the PV results from this tool. You can copy and paste it into an AI assistant
-                and ask for a plain-language explanation of what is driving PV benefits, PV costs, NPV, BCR, and ROI, without telling you which option to choose.
-              </p>
-            </section>
-
-            <section class="ai-section">
-              <h3>Copy-and-paste AI prompt</h3>
-              <textarea id="aiHelperArea" class="excel-textarea" rows="14" spellcheck="false"></textarea>
-              <p class="muted">
-                After making changes to inputs, click “Refresh AI prompt” so the summary stays in sync with your latest results.
-              </p>
-            </section>
+          <div class="excel-step">
+            <h3>3. Export results back to Excel</h3>
+            <p>
+              You can export the ranked results table as a CSV file and open it in Excel for reports
+              and presentations.
+            </p>
+            <button id="btn-export-csv" type="button" class="btn btn-primary">Download results as CSV</button>
           </div>
-        </section>
-      </section>
-    </main>
+        </div>
+      </div>
+    </section>
 
-    <footer class="app-footer">
-      <span class="muted">
-        This tool summarises PV results from your own spreadsheets. Check your underlying Excel analysis whenever assumptions change.
-      </span>
-    </footer>
-  </div>
+    <!-- Interpretation helper panel -->
+    <section id="tab-helper" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <h2>Farmer-friendly interpretation helper</h2>
+          <p>
+            This summary explains your current results in everyday language. You can copy and adapt it
+            for farm meetings or discussions with advisers.
+          </p>
+        </div>
 
-  <script src="script.js"></script>
+        <div class="helper-body">
+          <textarea id="helper-text" class="helper-textarea" rows="18" readonly></textarea>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>
+      Farming CBA Decision Tool 2 · Use at your own discretion. Results depend on the quality of your input data and assumptions.
+    </p>
+  </footer>
+</div>
+
+<script src="script.js"></script>
 </body>
 </html>
