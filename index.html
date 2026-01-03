@@ -3,207 +3,198 @@
 <head>
   <meta charset="UTF-8" />
   <title>Farming CBA Decision Tool 2</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- SheetJS for Excel handling -->
-  <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.20.0/xlsx.full.min.js"
-    integrity="sha512-+C0p7GQGE3zHIl5tv2F6wyxtoyZLr2Jo9wN9uVtzszH5g9nB+3By8KWNm6JyoKc3fXzqX6SsEhWwBW0wE36+tA=="
-    crossorigin="anonymous"
-    referrerpolicy="no-referrer">
-  </script>
+  <!-- Excel library for reading and writing .xlsx files -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <div class="app-title-block">
-        <div class="app-logo-circle">F</div>
-        <div>
-          <h1>Farming CBA Decision Tool 2</h1>
-          <p class="app-subtitle">
-            Snapshot cost–benefit comparison of soil treatments with Excel-first workflow and AI-assisted interpretation.
-          </p>
-        </div>
+      <div>
+        <h1>Farming CBA Decision Tool 2</h1>
+        <p class="subtitle">
+          Upload your actual farm CBA dataset, configure the scenario, and compare treatments by NPV, BCR, and ROI.
+        </p>
       </div>
-      <div class="app-header-right">
-        <button class="btn btn-ghost" id="btn-print">Print / Save as PDF</button>
+      <div class="header-actions">
+        <button type="button" class="btn btn-secondary" id="btn-print">
+          Print / Save PDF
+        </button>
       </div>
     </header>
 
-    <nav class="tab-bar">
-      <button class="tab-button active" data-tab="scenario">1. Scenario &amp; data</button>
-      <button class="tab-button" data-tab="treatments">2. Treatments &amp; costs</button>
-      <button class="tab-button" data-tab="results">3. Results snapshot</button>
-      <button class="tab-button" data-tab="ai">4. AI helper</button>
-      <button class="tab-button" data-tab="exports">5. Export &amp; help</button>
+    <nav class="tabs-nav">
+      <button class="tab-button active" data-tab="scenario">1. Scenario &amp; Upload</button>
+      <button class="tab-button" data-tab="treatments">2. Treatments</button>
+      <button class="tab-button" data-tab="results">3. Results</button>
+      <button class="tab-button" data-tab="ai-helper">4. AI helper</button>
     </nav>
 
-    <main class="tab-container">
-      <!-- Scenario & data -->
+    <main class="tabs-container">
+      <!-- SCENARIO TAB -->
       <section class="tab-panel active" data-tab="scenario">
-        <div class="panel-grid">
+        <div class="card-grid">
           <section class="card">
             <h2>Scenario settings</h2>
-            <div class="form-grid">
-              <label>
-                Farm area (ha)
-                <input type="number" id="input-area" min="1" step="1" value="100" />
-              </label>
-              <label>
-                Time horizon (years)
-                <input type="number" id="input-horizon" min="1" step="1" value="10" />
-              </label>
-              <label>
-                Discount rate (% per year)
-                <input type="number" id="input-discount" min="0" step="0.1" value="7" />
-              </label>
-              <label>
-                Grain price ($/tonne, default)
-                <input type="number" id="input-price" min="0" step="1" value="450" />
-              </label>
-            </div>
-            <p class="helper-text">
-              These settings apply to all treatments. The grain price can be overridden for a specific treatment on the
-              treatments tab.
+            <p class="section-intro">
+              These settings apply to all treatments. Adjust them to match your farm and analysis assumptions.
             </p>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="input-area">
+                  Farm area (ha)
+                  <span class="tooltip-icon" data-tooltip="Total cropped area in hectares used to scale whole-farm NPVs.">?</span>
+                </label>
+                <input id="input-area" type="number" step="1" min="1" />
+              </div>
+
+              <div class="form-field">
+                <label for="input-horizon">
+                  Time horizon (years)
+                  <span class="tooltip-icon" data-tooltip="Number of years over which benefits and costs are discounted.">?</span>
+                </label>
+                <input id="input-horizon" type="number" step="1" min="1" />
+              </div>
+
+              <div class="form-field">
+                <label for="input-discount">
+                  Discount rate (%)
+                  <span class="tooltip-icon" data-tooltip="Annual discount rate used to convert future amounts into present values.">?</span>
+                </label>
+                <input id="input-discount" type="number" step="0.1" min="0" />
+              </div>
+
+              <div class="form-field">
+                <label for="input-price">
+                  Default grain price ($/t)
+                  <span class="tooltip-icon" data-tooltip="Price per tonne used when a treatment does not specify its own price.">?</span>
+                </label>
+                <input id="input-price" type="number" step="1" min="0" />
+              </div>
+            </div>
           </section>
 
           <section class="card">
-            <h2>Upload Faba bean dataset (actual Excel)</h2>
-            <p class="helper-text">
-              Upload your existing Faba bean production cost dataset exactly as it is.
-              The tool will treat the first sheet as the data source and use the original columns without changes.
-              It expects at least the columns <code>Amendment</code>, <code>Yield t/ha</code> and
-              <code>Treatment Input Cost Only /Ha</code>, plus the other columns you have.
+            <h2>Upload actual CBA dataset</h2>
+            <p class="section-intro">
+              Upload the Excel file with your farm CBA data. The tool reads the dataset exactly as it is.
+              Required columns in the first sheet:
+              <strong>Amendment</strong>,
+              <strong>Yield t/ha</strong>,
+              <strong>Treatment Input Cost Only /Ha</strong>.
             </p>
             <div class="upload-block">
-              <label class="file-label">
-                <span>Select Excel file</span>
-                <input type="file" id="input-upload" accept=".xlsx,.xls" />
-              </label>
+              <input id="input-upload" type="file" accept=".xlsx,.xls" />
+              <p id="upload-status" class="upload-status">
+                No file uploaded yet.
+              </p>
+              <p class="hint">
+                No editing, no changes, no omissions: the tool uses your actual dataset. It groups rows by
+                <strong>Amendment</strong> and averages yield and treatment input costs per hectare.
+              </p>
             </div>
-            <p class="helper-text" id="upload-status"></p>
           </section>
         </div>
       </section>
 
-      <!-- Treatments & costs -->
+      <!-- TREATMENTS TAB -->
       <section class="tab-panel" data-tab="treatments">
         <section class="card">
-          <div class="card-header-row">
+          <div class="card-header-inline">
             <h2>Treatments and cost components</h2>
-            <button class="btn btn-secondary btn-small" id="btn-add-treatment">Add treatment</button>
+            <button type="button" class="btn btn-primary" id="btn-add-treatment">
+              + Add treatment
+            </button>
           </div>
-          <p class="helper-text">
-            Each row is a treatment. At least one should be marked as <strong>Control</strong>.
-            Capital cost (year 0) comes before annual costs. Total cost per hectare is calculated dynamically from the
-            cost components.
+          <p class="section-intro">
+            Edit treatment names, mark the control, and adjust yields, prices, and cost components.
+            All calculations update automatically.
           </p>
           <div class="table-wrapper">
-            <table class="data-table" id="treatments-table">
+            <table id="treatments-table" class="data-table">
               <thead>
-              <tr>
-                <th>Name</th>
-                <th>Control?</th>
-                <th>Yield (t/ha)</th>
-                <th>Price ($/t)</th>
-                <th>Capital cost ($/ha, year 0)</th>
-                <th>Seed &amp; fertiliser ($/ha/yr)</th>
-                <th>Chemicals ($/ha/yr)</th>
-                <th>Labour ($/ha/yr)</th>
-                <th>Machinery ($/ha/yr)</th>
-                <th>Other costs ($/ha/yr)</th>
-                <th>
-                  <span class="indicator-label">
-                    Total cost ($/ha/yr)
-                    <span class="tooltip-icon"
-                          data-tooltip="Sum of annual variable costs per hectare across all cost components. Capital cost is handled separately in year 0.">
-                      ?
-                    </span>
-                  </span>
-                </th>
-                <th>
-                  Extra benefits ($/ha/yr)
-                  <span class="tooltip-icon"
-                        data-tooltip="Annual non-yield benefits per hectare, for example grazing value or reduced risk, expressed in dollars.">
-                    ?
-                  </span>
-                </th>
-                <th></th>
-              </tr>
+                <tr>
+                  <th>Treatment name</th>
+                  <th>Control?</th>
+                  <th>Yield (t/ha)</th>
+                  <th>Price ($/t)</th>
+                  <th>Capital cost Year 0 ($/ha)</th>
+                  <th>Seed / fertiliser ($/ha)</th>
+                  <th>Chemicals ($/ha)</th>
+                  <th>Labour ($/ha)</th>
+                  <th>Machinery ($/ha)</th>
+                  <th>Other costs ($/ha)</th>
+                  <th>Total annual costs ($/ha)</th>
+                  <th>Extra benefits ($/ha)</th>
+                  <th></th>
+                </tr>
               </thead>
               <tbody>
-              <!-- filled by JS -->
+                <!-- Filled dynamically -->
               </tbody>
             </table>
           </div>
+          <p class="hint">
+            Annual costs per hectare are discounted over the time horizon.
+            Capital costs are treated as a one-off cost in year 0.
+          </p>
         </section>
       </section>
 
-      <!-- Results -->
+      <!-- RESULTS TAB -->
       <section class="tab-panel" data-tab="results">
-        <div class="panel-grid">
-          <section class="card">
-            <h2>Economic snapshot (per hectare)</h2>
-            <p class="helper-text">
-              Control is shown alongside all treatments. Indicators are per hectare; multiply by farm area for the
-              whole farm. Rankings are based on NPV per hectare.
-            </p>
-            <div id="results-table-container" class="results-table-container"></div>
-          </section>
-
-          <section class="card">
-            <h2>Headline summary</h2>
-            <div id="summary-block" class="summary-block"></div>
-          </section>
-        </div>
-      </section>
-
-      <!-- AI helper -->
-      <section class="tab-panel" data-tab="ai">
         <section class="card">
-          <h2>AI-assisted interpretation prompt</h2>
-          <p class="helper-text">
-            This prompt is built from your current scenario and results. Copy and paste it into Copilot, ChatGPT or
-            another model for a plain-English interpretation focused on decision support.
-          </p>
-          <div class="button-row">
-            <button class="btn btn-secondary" id="btn-refresh-prompt">Refresh prompt</button>
-            <button class="btn" id="btn-copy-prompt">Copy prompt</button>
-            <button class="btn btn-ghost" id="btn-download-prompt">Download prompt (.txt)</button>
+          <div class="card-header-inline">
+            <h2>Economic results</h2>
+            <div class="card-header-actions">
+              <button type="button" class="btn btn-secondary" id="btn-export-excel">
+                Export to Excel
+              </button>
+              <button type="button" class="btn btn-secondary" id="btn-print-2">
+                Print / Save PDF
+              </button>
+            </div>
           </div>
-          <textarea id="ai-prompt" class="prompt-textarea" rows="18"></textarea>
+          <div id="summary-block" class="summary-block">
+            <!-- Summary filled by JS -->
+          </div>
+          <div id="results-table-container" class="table-wrapper">
+            <!-- Results table filled by JS -->
+          </div>
         </section>
       </section>
 
-      <!-- Exports & help -->
-      <section class="tab-panel" data-tab="exports">
+      <!-- AI HELPER TAB -->
+      <section class="tab-panel" data-tab="ai-helper">
         <section class="card">
-          <h2>Export options</h2>
-          <div class="button-row">
-            <button class="btn" id="btn-export-excel">Export results to Excel</button>
-            <button class="btn btn-secondary" id="btn-print-2">Print / Save as PDF</button>
-          </div>
-          <p class="helper-text">
-            The Excel export includes scenario settings, treatments and key indicators (PV benefits, PV costs, NPV,
-            BCR, ROI and ranking). Use your browser’s print function with “Save as PDF” for a clean PDF.
+          <h2>AI helper prompt</h2>
+          <p class="section-intro">
+            This prompt summarises your scenario and results. Copy and paste it into your preferred AI
+            assistant to generate a farmer-friendly interpretation (2–3 pages).
           </p>
-        </section>
-
-        <section class="card">
-          <h2>Decision support, not decision rules</h2>
-          <p class="helper-text">
-            The tool keeps all treatments visible, including low-performing options.
-            Use it to explore why some treatments underperform and what changes (lower costs, higher yields, better
-            prices or practice changes) might improve them.
+          <div class="ai-toolbar">
+            <button type="button" class="btn btn-primary" id="btn-refresh-prompt">
+              Refresh from results
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-copy-prompt">
+              Copy to clipboard
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-download-prompt">
+              Download .txt
+            </button>
+          </div>
+          <textarea id="ai-prompt" class="ai-textarea" rows="18"></textarea>
+          <p class="hint">
+            If you change scenario settings or treatment data, click
+            <strong>Refresh from results</strong> before copying the prompt.
           </p>
         </section>
       </section>
     </main>
   </div>
 
-  <!-- Make sure this script tag points to script.js in the same folder -->
-  <script src="script.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
