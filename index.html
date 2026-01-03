@@ -1,4 +1,3 @@
-<!-- index.html : Farming CBA Decision Tool 2 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +5,8 @@
   <title>Farming CBA Decision Tool 2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="styles.css" />
-  <!-- SheetJS for Excel import/export -->
+
+  <!-- SheetJS for Excel handling -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.20.0/xlsx.full.min.js"
           integrity="sha512-+C0p7GQGE3zHIl5tv2F6wyxtoyZLr2Jo9wN9uVtzszH5g9nB+3By8KWNm6JyoKc3fXzqX6SsEhWwBW0wE36+tA=="
           crossorigin="anonymous"
@@ -20,224 +20,181 @@
         <div>
           <h1>Farming CBA Decision Tool 2</h1>
           <p class="app-subtitle">
-            Snapshot economic comparison of soil treatments with Excel-first workflow and AI-assisted interpretation.
+            Snapshot cost–benefit comparison of soil treatments with Excel-first workflow and AI-assisted interpretation.
           </p>
         </div>
       </div>
       <div class="app-header-right">
-        <button id="btn-print-pdf" class="btn btn-ghost">Print / Save as PDF</button>
+        <button class="btn btn-ghost" id="btn-print">Print / Save as PDF</button>
       </div>
     </header>
 
     <nav class="tab-bar">
-      <button class="tab-button active" data-tab="inputs">1. Scenario &amp; Excel</button>
-      <button class="tab-button" data-tab="treatments">2. Treatments &amp; Costs</button>
+      <button class="tab-button active" data-tab="scenario">1. Scenario &amp; data</button>
+      <button class="tab-button" data-tab="treatments">2. Treatments &amp; costs</button>
       <button class="tab-button" data-tab="results">3. Results snapshot</button>
-      <button class="tab-button" data-tab="ai-helper">4. AI helper</button>
-      <button class="tab-button" data-tab="exports">5. Exports &amp; help</button>
+      <button class="tab-button" data-tab="ai">4. AI helper</button>
+      <button class="tab-button" data-tab="exports">5. Export &amp; help</button>
     </nav>
 
     <main class="tab-container">
-
-      <!-- TAB 1: Scenario & Excel -->
-      <section class="tab-panel active" data-tab="inputs">
+      <!-- Scenario & data -->
+      <section class="tab-panel active" data-tab="scenario">
         <div class="panel-grid">
           <section class="card">
             <h2>Scenario settings</h2>
             <div class="form-grid">
               <label>
                 Farm area (ha)
-                <input id="input-area" type="number" step="1" min="1" value="100" />
+                <input type="number" id="input-area" min="1" step="1" value="100" />
               </label>
               <label>
                 Time horizon (years)
-                <input id="input-horizon" type="number" step="1" min="1" value="10" />
+                <input type="number" id="input-horizon" min="1" step="1" value="10" />
               </label>
               <label>
                 Discount rate (% per year)
-                <input id="input-discount" type="number" step="0.1" min="0" value="7" />
+                <input type="number" id="input-discount" min="0" step="0.1" value="7" />
               </label>
               <label>
                 Grain price ($/tonne, default)
-                <input id="input-price" type="number" step="1" min="0" value="450" />
+                <input type="number" id="input-price" min="0" step="1" value="450" />
               </label>
             </div>
             <p class="helper-text">
-              These settings are applied to all treatments. You can override price per tonne for a specific
-              treatment on the <strong>Treatments &amp; Costs</strong> tab.
+              These settings apply to all treatments. The grain price can be overridden for a specific treatment on the
+              treatments tab.
             </p>
           </section>
 
           <section class="card">
-            <h2>Excel-first workflow</h2>
+            <h2>Upload Faba bean dataset (actual Excel)</h2>
             <p class="helper-text">
-              Use Excel for detailed cost build-up (e.g. your full Faba bean sheet) and let this tool
-              calculate NPVs, BCRs and ROIs.
+              Upload your existing Faba bean production cost dataset exactly as it is.
+              The tool will treat the first sheet as the data source and use the original columns without changes.
+              It expects at least the columns <code>Amendment</code>, <code>Yield t/ha</code> and
+              <code>Treatment Input Cost Only /Ha</code>, plus the other columns you have.
             </p>
-            <div class="button-row">
-              <button id="btn-download-template" class="btn">Download empty template</button>
-              <button id="btn-download-scenario" class="btn btn-secondary">
-                Download current scenario to Excel
-              </button>
-            </div>
-
             <div class="upload-block">
               <label class="file-label">
-                <span>Upload completed Excel / CSV</span>
-                <input id="input-upload" type="file" accept=".xlsx,.xls,.csv" />
+                <span>Select Excel file</span>
+                <input type="file" id="input-upload" accept=".xlsx,.xls" />
               </label>
-              <p class="helper-text">
-                The template has one sheet <strong>Treatments</strong>.
-                Each row is a treatment (including at least one control).
-                When you upload the file, the tool checks the structure, imports all rows, and updates all
-                results automatically.
-              </p>
             </div>
-
-            <details class="info-box">
-              <summary>Template columns (for reference)</summary>
-              <p>
-                The <strong>Treatments</strong> sheet uses these columns (header names are important):
-              </p>
-              <ul>
-                <li><code>TreatmentName</code>, <code>IsControl</code> (yes/no)</li>
-                <li><code>Yield_t_per_ha</code>, <code>Price_per_tonne</code> (optional; falls back to default)</li>
-                <li><code>CapitalCost_Year0_per_ha</code></li>
-                <li>
-                  Cost components per ha per year:
-                  <code>Cost_SeedFert_per_ha</code>,
-                  <code>Cost_Chemicals_per_ha</code>,
-                  <code>Cost_Labour_per_ha</code>,
-                  <code>Cost_Machinery_per_ha</code>,
-                  <code>Cost_Other_per_ha</code>
-                </li>
-                <li><code>ExtraBenefits_per_ha</code> (optional non-yield benefits per ha per year)</li>
-              </ul>
-              <p>
-                Paste your full Faba bean dataset (or summaries from it) into this sheet, mapping to these
-                columns. No treatments are dropped; every row is imported and kept for comparison.
-              </p>
-            </details>
+            <p class="helper-text" id="upload-status"></p>
           </section>
         </div>
       </section>
 
-      <!-- TAB 2: Treatments & Costs -->
+      <!-- Treatments & costs -->
       <section class="tab-panel" data-tab="treatments">
         <section class="card">
           <div class="card-header-row">
             <h2>Treatments and cost components</h2>
-            <button id="btn-add-treatment" class="btn btn-secondary">Add treatment</button>
+            <button class="btn btn-secondary btn-small" id="btn-add-treatment">Add treatment</button>
           </div>
           <p class="helper-text">
-            Each row is a treatment option. At least one treatment must be marked as
-            <strong>Control</strong>. Capital cost (year 0) comes before annual costs.
-            Total cost per ha is calculated dynamically from the cost components.
+            Each row is a treatment. At least one should be marked as <strong>Control</strong>.
+            Capital cost (year 0) comes before annual costs. Total cost per hectare is calculated dynamically from the
+            cost components.
           </p>
-
           <div class="table-wrapper">
             <table class="data-table" id="treatments-table">
               <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Control?</th>
-                  <th>Yield (t/ha)</th>
-                  <th>Price ($/t)</th>
-                  <th>Capital cost ($/ha, year 0)</th>
-                  <th>Seed &amp; fertiliser ($/ha/yr)</th>
-                  <th>Chemicals ($/ha/yr)</th>
-                  <th>Labour ($/ha/yr)</th>
-                  <th>Machinery ($/ha/yr)</th>
-                  <th>Other costs ($/ha/yr)</th>
-                  <th>
-                    <span class="indicator-label">
-                      Total cost ($/ha/yr)
-                      <span class="tooltip-icon"
-                            data-tooltip="Sum of annual variable costs per hectare across all cost components. Capital cost is handled separately in year 0.">
-                        ?
-                      </span>
-                    </span>
-                  </th>
-                  <th>
-                    Extra benefits ($/ha/yr)
+              <tr>
+                <th>Name</th>
+                <th>Control?</th>
+                <th>Yield (t/ha)</th>
+                <th>Price ($/t)</th>
+                <th>Capital cost ($/ha, year 0)</th>
+                <th>Seed &amp; fertiliser ($/ha/yr)</th>
+                <th>Chemicals ($/ha/yr)</th>
+                <th>Labour ($/ha/yr)</th>
+                <th>Machinery ($/ha/yr)</th>
+                <th>Other costs ($/ha/yr)</th>
+                <th>
+                  <span class="indicator-label">
+                    Total cost ($/ha/yr)
                     <span class="tooltip-icon"
-                          data-tooltip="Annual non-yield benefits per hectare, e.g. reduced risk, grazing value or other monetised ecosystem services.">
+                          data-tooltip="Sum of annual variable costs per hectare across all cost components. Capital cost is handled separately in year 0.">
                       ?
                     </span>
-                  </th>
-                  <th></th>
-                </tr>
+                  </span>
+                </th>
+                <th>
+                  Extra benefits ($/ha/yr)
+                  <span class="tooltip-icon"
+                        data-tooltip="Annual non-yield benefits per hectare, for example grazing value or reduced risk, expressed in dollars.">
+                    ?
+                  </span>
+                </th>
+                <th></th>
+              </tr>
               </thead>
               <tbody>
-                <!-- populated by script.js -->
+              <!-- filled by JS -->
               </tbody>
             </table>
           </div>
         </section>
       </section>
 
-      <!-- TAB 3: Results snapshot -->
+      <!-- Results -->
       <section class="tab-panel" data-tab="results">
         <div class="panel-grid">
           <section class="card">
             <h2>Economic snapshot (per hectare)</h2>
             <p class="helper-text">
-              Control is shown alongside all treatments. Values are per hectare; multiply by farm area for
-              whole-farm totals. Rankings are based on NPV per hectare.
+              Control is shown alongside all treatments. Indicators are per hectare; multiply by farm area for the
+              whole farm. Rankings are based on NPV per hectare.
             </p>
-            <div id="results-table-container" class="results-table-container">
-              <!-- table injected here -->
-            </div>
+            <div id="results-table-container" class="results-table-container"></div>
           </section>
 
           <section class="card">
             <h2>Headline summary</h2>
-            <div id="summary-block" class="summary-block">
-              <!-- summary injected here -->
-            </div>
+            <div id="summary-block" class="summary-block"></div>
           </section>
         </div>
       </section>
 
-      <!-- TAB 4: AI helper -->
-      <section class="tab-panel" data-tab="ai-helper">
+      <!-- AI helper -->
+      <section class="tab-panel" data-tab="ai">
         <section class="card">
           <h2>AI-assisted interpretation prompt</h2>
           <p class="helper-text">
-            This prompt is automatically built from your current scenario and results. Copy and paste it
-            into Copilot, ChatGPT or another model to produce a plain-English interpretation. The prompt
-            is explicitly decision-support only and does not tell the farmer what to choose.
+            This prompt is built from your current scenario and results. Copy and paste it into Copilot, ChatGPT or
+            another model for a plain-English interpretation focused on decision support.
           </p>
           <div class="button-row">
-            <button id="btn-refresh-prompt" class="btn btn-secondary">Refresh prompt</button>
-            <button id="btn-copy-prompt" class="btn">Copy prompt</button>
-            <button id="btn-download-prompt" class="btn btn-ghost">Download prompt (.txt)</button>
+            <button class="btn btn-secondary" id="btn-refresh-prompt">Refresh prompt</button>
+            <button class="btn" id="btn-copy-prompt">Copy prompt</button>
+            <button class="btn btn-ghost" id="btn-download-prompt">Download prompt (.txt)</button>
           </div>
           <textarea id="ai-prompt" class="prompt-textarea" rows="18"></textarea>
         </section>
       </section>
 
-      <!-- TAB 5: Exports & help -->
+      <!-- Exports & help -->
       <section class="tab-panel" data-tab="exports">
         <section class="card">
           <h2>Export options</h2>
           <div class="button-row">
-            <button id="btn-export-excel" class="btn">Export results to Excel</button>
-            <button id="btn-print-pdf-2" class="btn btn-secondary">Print / Save as PDF</button>
+            <button class="btn" id="btn-export-excel">Export results to Excel</button>
+            <button class="btn btn-secondary" id="btn-print-2">Print / Save as PDF</button>
           </div>
           <p class="helper-text">
-            The Excel export includes scenario settings, treatment inputs and all key indicators for each
-            treatment (PV benefits, PV costs, NPV, BCR, ROI, and ranking). Use your browser’s
-            <strong>Print</strong> function with “Save as PDF” to create a clean PDF of the main results page.
+            The Excel export includes scenario settings, treatments and key indicators (PV benefits, PV costs, NPV,
+            BCR, ROI and ranking). Use your browser’s print function with “Save as PDF” for a clean PDF.
           </p>
         </section>
 
         <section class="card">
-          <h2>How to use this tool as decision support</h2>
+          <h2>Decision support, not decision rules</h2>
           <p class="helper-text">
-            This tool is designed for exploration and learning. Low-performing treatments are never hidden
-            or removed. Instead, use the AI helper and the cost components to explore what would need to
-            change (e.g. reduce costs, improve yield, improve prices) for a treatment to become attractive.
+            The tool keeps all treatments visible, including low-performing options.
+            Use it to explore why some treatments underperform and what changes (lower costs, higher yields, better
+            prices or practice changes) might improve them.
           </p>
         </section>
       </section>
