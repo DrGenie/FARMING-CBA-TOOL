@@ -1,4 +1,4 @@
-// script.js : Farming CBA Decision Tool 2
+// script.js : Farming CBA Decision Tool
 document.addEventListener("DOMContentLoaded", () => {
   /* ----------------------- STATE ----------------------- */
   const state = {
