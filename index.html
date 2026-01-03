@@ -1,4 +1,3 @@
-<!-- index.html – Farming CBA Decision Tool 2 (advanced, fully functional) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15,39 +14,41 @@
         <div class="app-logo-circle">F</div>
         <div>
           <h1>Farming CBA Decision Tool 2</h1>
-          <p>Compare long-run economic performance of farm investments</p>
+          <p>Decision support for farm cost–benefit analysis, using your own Excel data.</p>
         </div>
       </div>
       <div class="app-header-actions">
-        <button id="btn-load-demo" type="button" class="btn btn-ghost">Load demo farm</button>
-        <button id="btn-print" type="button" class="btn btn-ghost">Print</button>
+        <button id="btn-load-sample" type="button" class="btn btn-ghost">Load small sample</button>
+        <button id="btn-print" type="button" class="btn btn-ghost">Print / Export to PDF</button>
       </div>
     </div>
     <div class="app-header-sub">
       <p>
-        Enter present value (PV) benefits and PV costs for each treatment, or import them from Excel, then review
-        the results matrix, scenario analysis, snapshots, and farmer-friendly summary.
+        Use Excel to hold all detailed calculations. This tool focuses on clear comparison of treatments against a
+        control, headline economic indicators, and AI-ready prompts for farmer-friendly interpretation.
       </p>
     </div>
   </header>
 
   <nav class="tabs">
-    <button class="tab-button active" data-tab="inputs">1. Inputs</button>
-    <button class="tab-button" data-tab="results">2. Results matrix & scenarios</button>
-    <button class="tab-button" data-tab="snapshots">3. Treatment snapshots</button>
-    <button class="tab-button" data-tab="excel">4. Excel, import & export</button>
-    <button class="tab-button" data-tab="helper">5. Interpretation helper</button>
+    <button class="tab-button active" data-tab="treatments">1. Treatments & costs</button>
+    <button class="tab-button" data-tab="results">2. Results matrix</button>
+    <button class="tab-button" data-tab="snapshots">3. Snapshots</button>
+    <button class="tab-button" data-tab="excel">4. Excel & templates</button>
+    <button class="tab-button" data-tab="ai">5. AI helper</button>
   </nav>
 
   <main class="app-main">
-    <!-- Inputs panel -->
-    <section id="tab-inputs" class="tab-panel active">
+
+    <!-- Treatments & costs -->
+    <section id="tab-treatments" class="tab-panel active">
       <div class="card">
         <div class="card-header">
-          <h2>Economic inputs by treatment</h2>
+          <h2>Treatments, areas and cost components</h2>
           <p>
-            Each row is a treatment or strategy. Use present value (PV) benefits and PV costs for the whole analysis period
-            (for example 10–20 years, discounted using your chosen rate).
+            Each row is a treatment or strategy (for example a soil amendment package, fertiliser program, or control).
+            Costs are broken into a one-off capital cost at year 0 and recurring annual costs per hectare. Benefits are
+            driven by yield, price and any other annual benefits per hectare.
           </p>
         </div>
 
@@ -62,26 +63,46 @@
         </div>
 
         <div class="table-wrapper">
-          <table class="table">
+          <table class="table" id="treatments-table">
             <thead>
             <tr>
-              <th>Treatment name</th>
-              <th>PV benefits<br><span class="th-sub">All years, in your currency</span></th>
-              <th>PV costs<br><span class="th-sub">All years, in your currency</span></th>
+              <th>Treatment name<br><span class="th-sub">Include “Control” in name for baseline</span></th>
+              <th>Is control?</th>
+              <th>Area (ha)</th>
+              <th>
+                Capital cost<br>($, year 0)
+                <span class="indicator-tooltip" data-tooltip="One-off capital spending at the start of the project, for this treatment.">?</span>
+              </th>
+              <th>
+                Annual cost<br>($/ha/year)
+                <span class="indicator-tooltip" data-tooltip="Average annual variable or operating cost per hectare for this treatment.">?</span>
+              </th>
+              <th>
+                Yield<br>(t/ha/year)
+                <span class="indicator-tooltip" data-tooltip="Average annual grain or product yield per hectare for this treatment.">?</span>
+              </th>
+              <th>
+                Price<br>($/t)
+                <span class="indicator-tooltip" data-tooltip="Expected average price received per tonne of output.">?</span>
+              </th>
+              <th>
+                Other annual benefits<br>($/ha/year)
+                <span class="indicator-tooltip" data-tooltip="Any additional annual benefits per hectare (for example risk reduction or co-products), expressed in money terms.">?</span>
+              </th>
               <th>Notes / description</th>
               <th></th>
             </tr>
             </thead>
-            <tbody id="inputs-tbody">
-            <!-- rows created by script.js -->
+            <tbody id="treatments-tbody">
+            <!-- populated by script.js -->
             </tbody>
           </table>
         </div>
 
         <div class="card-footer">
           <p>
-            Tip: If your CBA is in Excel, sum discounted benefits and costs across years for each treatment and paste those PV totals here,
-            or use the CSV import on the Excel tab to pull them in directly.
+            Capital cost is shown before annual cost. All key indicators (PV benefits, PV costs, NPV, BCR, ROI) are
+            recalculated dynamically when you change these values and click “Update results”.
           </p>
         </div>
       </div>
@@ -90,7 +111,7 @@
         <div class="card-header">
           <h2>Global assumptions</h2>
           <p>
-            These are used in the interpretation text. Your PV inputs should already reflect this discount rate and analysis horizon.
+            These assumptions are used for the present value calculations and for the AI interpretation prompt.
           </p>
         </div>
         <div class="assumptions-grid">
@@ -101,7 +122,7 @@
           </div>
           <div class="assumption-field">
             <label>Analysis horizon (years)
-              <input type="number" id="analysis-years" value="20" step="1">
+              <input type="number" id="analysis-years" value="10" step="1">
             </label>
           </div>
           <div class="assumption-field">
@@ -113,13 +134,14 @@
       </div>
     </section>
 
-    <!-- Results matrix panel -->
+    <!-- Results matrix -->
     <section id="tab-results" class="tab-panel">
       <div class="card">
         <div class="card-header">
-          <h2>Results matrix and scenario analysis</h2>
+          <h2>Results matrix: comparison against control</h2>
           <p>
-            Results are ranked by net present value (NPV). You can stress-test the analysis under simple price and cost scenarios.
+            Indicators are shown as rows and treatments as columns. The control appears alongside all treatments, with
+            figures aligned vertically for easy comparison. Low-performing treatments are shown, not hidden.
           </p>
         </div>
 
@@ -129,136 +151,158 @@
               Scenario:
               <select id="scenario-select">
                 <option value="base">Base case (as entered)</option>
-                <option value="lowPrice">Lower commodity prices (−20% benefits)</option>
-                <option value="highCost">Higher costs (+20% costs)</option>
-                <option value="optimistic">Optimistic (benefits +20%, costs −10%)</option>
+                <option value="lowPrice">Lower commodity prices (−20% price)</option>
+                <option value="highCost">Higher costs (+20% annual costs)</option>
+                <option value="optimistic">Optimistic (+20% price, −10% annual costs)</option>
               </select>
             </label>
           </div>
-          <div id="results-summary" class="results-summary">
-            <!-- summary text populated by script.js -->
-          </div>
+          <div id="results-summary" class="results-summary"></div>
         </div>
 
-        <div class="table-wrapper">
-          <table class="table table-compact">
-            <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Treatment</th>
-              <th>PV benefits</th>
-              <th>PV costs</th>
-              <th>NPV</th>
-              <th>Δ NPV vs baseline</th>
-              <th>BCR</th>
-              <th>ROI</th>
-            </tr>
+        <div class="table-wrapper horizontal-scroll">
+          <table class="table table-compact" id="results-matrix-table">
+            <thead id="results-matrix-head">
+            <!-- populated by script.js -->
             </thead>
-            <tbody id="results-tbody">
-            <!-- rows rendered by script.js -->
+            <tbody id="results-matrix-body">
+            <!-- populated by script.js -->
             </tbody>
           </table>
         </div>
 
         <div class="card-footer card-footer-grid">
           <div>
-            <h3>Key economic measures</h3>
+            <h3>Key economic indicators</h3>
             <p>
-              NPV is PV benefits minus PV costs. BCR is PV benefits divided by PV costs.
-              ROI is NPV divided by PV costs. A higher value usually means a stronger economic case,
-              but you should also consider risk, timing, labour, and fit with the wider farm plan.
+              <strong>Net present value (NPV)</strong>
+              <span class="indicator-tooltip" data-tooltip="NPV = PV benefits − PV costs. NPV above zero indicates a net economic gain in present value terms.">?</span>
+              is the core economic measure. It combines all benefits and costs over time using the chosen discount rate.
+            </p>
+            <p>
+              <strong>Benefit–cost ratio (BCR)</strong>
+              <span class="indicator-tooltip" data-tooltip="BCR = PV benefits ÷ PV costs. Values above 1 mean benefits exceed costs in present value terms.">?</span>
+              and <strong>return on investment (ROI)</strong>
+              <span class="indicator-tooltip" data-tooltip="ROI = NPV ÷ PV costs. This can be read as net gain per dollar of PV cost.">?</span>
+              help show how hard each dollar of cost is working. Rankings are based on NPV under the selected scenario.
             </p>
           </div>
           <div class="note-box">
-            <strong>Baseline comparison</strong>
+            <strong>Control comparison</strong>
             <p>
-              The baseline is usually the control or current practice. The “Δ NPV vs baseline” column shows
-              how much extra value each treatment is expected to create, in present value terms, relative to that baseline.
+              The control (usually current practice) is highlighted. The “Δ NPV vs control” row shows how much extra value
+              each treatment is expected to create in present value terms relative to the control, under the chosen scenario.
             </p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Treatment snapshots panel -->
+    <!-- Snapshots -->
     <section id="tab-snapshots" class="tab-panel">
       <div class="card">
         <div class="card-header">
-          <h2>Treatment snapshots</h2>
-          <p>Plain-language summaries for each treatment, based on your numbers and the selected scenario.</p>
+          <h2>Snapshots by treatment</h2>
+          <p>
+            Headline numbers only: PV benefits, PV costs, NPV, BCR and ROI for each treatment. Detailed narratives are
+            optional and handled via AI on the next tab.
+          </p>
           <p id="snapshots-scenario-label" class="scenario-label-text"></p>
         </div>
 
         <div id="snapshots-container" class="snapshots-grid">
-          <!-- snapshot cards rendered by script.js -->
+          <!-- populated by script.js -->
         </div>
       </div>
     </section>
 
-    <!-- Excel & export panel -->
+    <!-- Excel & templates -->
     <section id="tab-excel" class="tab-panel">
       <div class="card">
         <div class="card-header">
-          <h2>Excel workflow, import and exports</h2>
+          <h2>Excel-first workflow</h2>
           <p>
-            Keep your detailed CBA in Excel and use this tool as a clean results front-end for decision makers.
+            The core design is Excel-first. Keep all detailed yield and cost calculations in Excel, then use
+            <strong>Farming CBA Decision Tool 2</strong> as a clean results and interpretation front-end.
           </p>
         </div>
 
         <div class="excel-layout">
           <div class="excel-step">
-            <h3>1. Keep full CBA in Excel</h3>
+            <h3>1. Download template</h3>
             <p>
-              Use Excel or another spreadsheet to model annual yields, prices, variable costs, and capital spending
-              for each treatment. Apply your discount rate and horizon to calculate PV benefits and PV costs
-              for every treatment.
+              Download a clean template, or a template pre-filled with your current treatments. Work in Excel to paste in
+              your full Faba Beans dataset or other crops. One row in the template corresponds to one treatment or plot.
+            </p>
+            <button id="btn-download-template" type="button" class="btn btn-primary">Download blank Excel template (CSV)</button>
+            <button id="btn-download-current" type="button" class="btn btn-secondary">Download current data as template (CSV)</button>
+          </div>
+
+          <div class="excel-step">
+            <h3>2. Edit and save in Excel</h3>
+            <p>
+              In Excel, fill or adjust the following columns (header names must stay the same):
+            </p>
+            <p class="excel-tip">
+              <code>TreatmentName, IsControl, AreaHa, Yield_t_per_ha, Price_per_tonne, CapitalCost_year0, AnnualCost_per_ha, OtherAnnualBenefits_per_ha, Notes</code>
+            </p>
+            <p>
+              You can paste your entire Faba Beans dataset, with no treatments omitted, by mapping each plot or treatment
+              combination into one row in this template.
             </p>
           </div>
+
           <div class="excel-step">
-            <h3>2. Import PV totals (CSV)</h3>
+            <h3>3. Upload and recalculate</h3>
             <p>
-              Export a simple CSV from Excel with at least these columns:
-              <strong>Treatment</strong>, <strong>PV_benefits</strong>, <strong>PV_costs</strong>, and optionally <strong>Notes</strong>.
-              Then import it here to populate the inputs table automatically.
+              Save your template as CSV in Excel, then upload it here. The tool validates the header, parses each row,
+              and automatically recalculates all indicators and rankings for you.
             </p>
             <input type="file" id="file-import-csv" accept=".csv" class="file-input">
             <p class="excel-tip">
-              The import replaces current rows. You can still edit values manually afterwards.
+              After upload, all tabs (results matrix, snapshots, AI helper) update based on your actual Excel data.
             </p>
-          </div>
-          <div class="excel-step">
-            <h3>3. Export results back to Excel</h3>
+            <h3 style="margin-top:12px;">4. Export results back to Excel</h3>
             <p>
-              Export the ranked results table as a CSV file and open it in Excel or another program for
-              reporting and presentations.
+              Export the ranked results matrix as a CSV file suitable for Excel, policy briefs, or reports.
             </p>
-            <button id="btn-export-csv" type="button" class="btn btn-primary">Download results as CSV</button>
+            <button id="btn-export-results-csv" type="button" class="btn btn-primary">Download results matrix (CSV)</button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Interpretation helper panel -->
-    <section id="tab-helper" class="tab-panel">
+    <!-- AI helper -->
+    <section id="tab-ai" class="tab-panel">
       <div class="card">
         <div class="card-header">
-          <h2>Farmer-friendly interpretation helper</h2>
+          <h2>AI interpretation helper</h2>
           <p>
-            This summary explains your current results, including the baseline, in everyday language.
-            You can copy and adapt it for farm meetings or discussions with advisers and decision makers.
+            This tool builds a structured prompt for use with Copilot, ChatGPT, or any other large language model. The AI
+            model will generate a plain-English interpretation and optional policy brief using your own results.
           </p>
         </div>
 
         <div class="helper-body">
-          <textarea id="helper-text" class="helper-textarea" rows="18" readonly></textarea>
+          <div class="helper-controls">
+            <button id="btn-refresh-ai-prompt" type="button" class="btn btn-secondary">Refresh AI prompt</button>
+            <button id="btn-download-ai-prompt" type="button" class="btn btn-primary">Download AI prompt (.txt)</button>
+          </div>
+          <p class="helper-instruction">
+            Step 1: Click “Refresh AI prompt”.<br>
+            Step 2: Copy the full text below and paste it into your preferred AI assistant.<br>
+            Step 3: Ask the AI to generate a 2–3 page interpretation and, if needed, a longer policy brief.
+          </p>
+          <textarea id="ai-prompt-text" class="helper-textarea" rows="22" readonly></textarea>
         </div>
       </div>
     </section>
+
   </main>
 
   <footer class="app-footer">
     <p>
-      Farming CBA Decision Tool 2 · Use at your own discretion. Results depend on the quality of your input data and assumptions.
+      Farming CBA Decision Tool 2 · Decision support only. Results depend on the quality of your Excel inputs and assumptions.
     </p>
   </footer>
 </div>
