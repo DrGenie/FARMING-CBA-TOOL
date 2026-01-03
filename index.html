@@ -1,4 +1,4 @@
-<!-- index.htmll -->
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,7 +13,7 @@
       <div class="app-header-main">
         <h1>Farming CBA Decision Tool 2</h1>
         <p class="app-tagline">
-          Compare present value (PV) benefits and costs across farm treatments, using results in Excel.
+          Compare present value (PV) benefits and costs across farm treatments, using results already calculated in Excel.
         </p>
       </div>
       <div class="app-header-meta">
@@ -94,7 +94,20 @@
 
           <section class="card">
             <header class="card-header">
-              <h2>2. Quick guidance</h2>
+              <div class="card-header-main">
+                <h2>2. Quick guidance</h2>
+                <p class="card-subtitle">
+                  Use your Excel workbook for detailed PV calculations. This tool keeps the summary clear and farmer-friendly.
+                </p>
+              </div>
+              <div class="card-header-actions">
+                <button id="loadDemoBtn" class="btn btn-secondary" type="button">
+                  Load example data
+                </button>
+                <button id="resetToolBtn" class="btn btn-secondary" type="button">
+                  Reset to blank
+                </button>
+              </div>
             </header>
             <div class="card-body guidance-text">
               <p>
@@ -232,6 +245,8 @@
                 </tbody>
               </table>
             </div>
+
+            <p class="muted" id="resultsHint"></p>
           </div>
         </section>
       </section>
@@ -391,7 +406,6 @@
     </footer>
   </div>
 
-  <!-- Keep this script tag at the end of body, without async/defer -->
   <script src="script.js"></script>
 </body>
 </html>
