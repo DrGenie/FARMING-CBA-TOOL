@@ -1,4 +1,4 @@
-<!-- index.html – Farming CBA Decision Tool 2 (fully working) -->
+<!-- index.html – Farming CBA Decision Tool 2 (advanced, fully functional) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -25,17 +25,17 @@
     </div>
     <div class="app-header-sub">
       <p>
-        Enter present value (PV) benefits and PV costs for each treatment, then review the
-        results matrix, snapshots, and farmer-friendly summary.
+        Enter present value (PV) benefits and PV costs for each treatment, or import them from Excel, then review
+        the results matrix, scenario analysis, snapshots, and farmer-friendly summary.
       </p>
     </div>
   </header>
 
   <nav class="tabs">
     <button class="tab-button active" data-tab="inputs">1. Inputs</button>
-    <button class="tab-button" data-tab="results">2. Results matrix</button>
+    <button class="tab-button" data-tab="results">2. Results matrix & scenarios</button>
     <button class="tab-button" data-tab="snapshots">3. Treatment snapshots</button>
-    <button class="tab-button" data-tab="excel">4. Excel & export</button>
+    <button class="tab-button" data-tab="excel">4. Excel, import & export</button>
     <button class="tab-button" data-tab="helper">5. Interpretation helper</button>
   </nav>
 
@@ -47,7 +47,7 @@
           <h2>Economic inputs by treatment</h2>
           <p>
             Each row is a treatment or strategy. Use present value (PV) benefits and PV costs for the whole analysis period
-            (for example 10–20 years, discounted using your preferred rate).
+            (for example 10–20 years, discounted using your chosen rate).
           </p>
         </div>
 
@@ -80,8 +80,35 @@
 
         <div class="card-footer">
           <p>
-            Tip: If your CBA is in Excel, sum discounted benefits and costs across years for each treatment and paste those PV totals here.
+            Tip: If your CBA is in Excel, sum discounted benefits and costs across years for each treatment and paste those PV totals here,
+            or use the CSV import on the Excel tab to pull them in directly.
           </p>
+        </div>
+      </div>
+
+      <div class="card card-narrow-top">
+        <div class="card-header">
+          <h2>Global assumptions</h2>
+          <p>
+            These are used in the interpretation text. Your PV inputs should already reflect this discount rate and analysis horizon.
+          </p>
+        </div>
+        <div class="assumptions-grid">
+          <div class="assumption-field">
+            <label>Discount rate (% per year)
+              <input type="number" id="discount-rate" value="7" step="0.1">
+            </label>
+          </div>
+          <div class="assumption-field">
+            <label>Analysis horizon (years)
+              <input type="number" id="analysis-years" value="20" step="1">
+            </label>
+          </div>
+          <div class="assumption-field">
+            <label>Currency label
+              <input type="text" id="currency-label" value="$">
+            </label>
+          </div>
         </div>
       </div>
     </section>
@@ -90,10 +117,27 @@
     <section id="tab-results" class="tab-panel">
       <div class="card">
         <div class="card-header">
-          <h2>Results matrix</h2>
+          <h2>Results matrix and scenario analysis</h2>
           <p>
-            Results are ranked by net present value (NPV). These are decision support numbers rather than hard rules.
+            Results are ranked by net present value (NPV). You can stress-test the analysis under simple price and cost scenarios.
           </p>
+        </div>
+
+        <div class="results-toolbar">
+          <div class="results-toolbar-left">
+            <label class="scenario-label">
+              Scenario:
+              <select id="scenario-select">
+                <option value="base">Base case (as entered)</option>
+                <option value="lowPrice">Lower commodity prices (−20% benefits)</option>
+                <option value="highCost">Higher costs (+20% costs)</option>
+                <option value="optimistic">Optimistic (benefits +20%, costs −10%)</option>
+              </select>
+            </label>
+          </div>
+          <div id="results-summary" class="results-summary">
+            <!-- summary text populated by script.js -->
+          </div>
         </div>
 
         <div class="table-wrapper">
@@ -105,6 +149,7 @@
               <th>PV benefits</th>
               <th>PV costs</th>
               <th>NPV</th>
+              <th>Δ NPV vs baseline</th>
               <th>BCR</th>
               <th>ROI</th>
             </tr>
@@ -121,14 +166,14 @@
             <p>
               NPV is PV benefits minus PV costs. BCR is PV benefits divided by PV costs.
               ROI is NPV divided by PV costs. A higher value usually means a stronger economic case,
-              but you should also consider risk, fit with your farm, and practical constraints.
+              but you should also consider risk, timing, labour, and fit with the wider farm plan.
             </p>
           </div>
           <div class="note-box">
-            <strong>Reminder</strong>
+            <strong>Baseline comparison</strong>
             <p>
-              The tool does not tell you what to choose. It highlights how each treatment performs
-              financially in present value terms so you can weigh this alongside agronomic and personal factors.
+              The baseline is usually the control or current practice. The “Δ NPV vs baseline” column shows
+              how much extra value each treatment is expected to create, in present value terms, relative to that baseline.
             </p>
           </div>
         </div>
@@ -140,7 +185,8 @@
       <div class="card">
         <div class="card-header">
           <h2>Treatment snapshots</h2>
-          <p>Plain-language summaries for each treatment, based on your numbers.</p>
+          <p>Plain-language summaries for each treatment, based on your numbers and the selected scenario.</p>
+          <p id="snapshots-scenario-label" class="scenario-label-text"></p>
         </div>
 
         <div id="snapshots-container" class="snapshots-grid">
@@ -153,9 +199,9 @@
     <section id="tab-excel" class="tab-panel">
       <div class="card">
         <div class="card-header">
-          <h2>Excel workflow and exports</h2>
+          <h2>Excel workflow, import and exports</h2>
           <p>
-            Keep your detailed CBA in Excel and use this tool as a clean results front-end.
+            Keep your detailed CBA in Excel and use this tool as a clean results front-end for decision makers.
           </p>
         </div>
 
@@ -163,23 +209,28 @@
           <div class="excel-step">
             <h3>1. Keep full CBA in Excel</h3>
             <p>
-              Use Excel or another spreadsheet to model annual yields, prices, variable costs, and capital
-              spending for each treatment. Apply your discount rate and horizon to calculate PV benefits
-              and PV costs for every treatment.
+              Use Excel or another spreadsheet to model annual yields, prices, variable costs, and capital spending
+              for each treatment. Apply your discount rate and horizon to calculate PV benefits and PV costs
+              for every treatment.
             </p>
           </div>
           <div class="excel-step">
-            <h3>2. Paste PV totals here</h3>
+            <h3>2. Import PV totals (CSV)</h3>
             <p>
-              For each treatment, copy the PV benefits and PV costs from your spreadsheet into this tool’s
-              input table. Use a consistent currency and discount rate across all treatments.
+              Export a simple CSV from Excel with at least these columns:
+              <strong>Treatment</strong>, <strong>PV_benefits</strong>, <strong>PV_costs</strong>, and optionally <strong>Notes</strong>.
+              Then import it here to populate the inputs table automatically.
+            </p>
+            <input type="file" id="file-import-csv" accept=".csv" class="file-input">
+            <p class="excel-tip">
+              The import replaces current rows. You can still edit values manually afterwards.
             </p>
           </div>
           <div class="excel-step">
             <h3>3. Export results back to Excel</h3>
             <p>
-              You can export the ranked results table as a CSV file and open it in Excel for reports
-              and presentations.
+              Export the ranked results table as a CSV file and open it in Excel or another program for
+              reporting and presentations.
             </p>
             <button id="btn-export-csv" type="button" class="btn btn-primary">Download results as CSV</button>
           </div>
@@ -193,8 +244,8 @@
         <div class="card-header">
           <h2>Farmer-friendly interpretation helper</h2>
           <p>
-            This summary explains your current results in everyday language. You can copy and adapt it
-            for farm meetings or discussions with advisers.
+            This summary explains your current results, including the baseline, in everyday language.
+            You can copy and adapt it for farm meetings or discussions with advisers and decision makers.
           </p>
         </div>
 
