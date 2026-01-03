@@ -1,5 +1,5 @@
 /* app.js
-   Farming CBA Decision Tool 2 — Newcastle Business School
+   Farming CBA Decision Tool 2 mesfin Newcastle Business School
    Upgrades implemented:
    - Unmistakable “Control vs all treatments” comparison table (sticky Indicator + Control columns, sticky header, horizontal scroll)
    - Leaderboard above table (click to focus/highlight a treatment column)
