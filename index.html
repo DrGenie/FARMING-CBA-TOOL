@@ -1,711 +1,396 @@
-<!-- index.htmll -->
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Farming CBA Decision Tool 2 - Newcastle Business School</title>
+  <title>Farming CBA Decision Tool 2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Farming CBA Decision Tool 2: compare treatments against a control, import and export Excel, and generate AI-assisted interpretations." />
   <link rel="stylesheet" href="styles.css" />
 </head>
-
-<body data-theme="worldbank-light">
-  <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
-
-  <header class="app-header">
-    <div class="brand" role="banner">
-      <div class="brand-mark" aria-hidden="true">NBS</div>
-      <div class="brand-text">
-        <div class="brand-title">Farming CBA Decision Tool 2</div>
-        <div class="brand-subtitle">Newcastle Business School</div>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header-main">
+        <h1>Farming CBA Decision Tool 2</h1>
+        <p class="app-tagline">
+          Compare present value (PV) benefits and costs across farm treatments, using results already calculated in Excel.
+        </p>
       </div>
-    </div>
-    <div class="header-actions">
-      <button id="startBtn" class="btn primary">Start with project setup</button>
-      <button id="saveProject" class="btn ghost">Save project (JSON)</button>
-      <button id="loadProject" class="btn ghost">Load project</button>
-      <input type="file" id="loadFile" accept=".json" style="display:none" />
-    </div>
-  </header>
+      <div class="app-header-meta">
+        <div class="badge badge-primary">Snapshot-first</div>
+        <div class="badge badge-soft">Excel-first workflow</div>
+        <div class="badge badge-soft">Farmer-friendly outputs</div>
+      </div>
+    </header>
 
-  <main class="app-main">
-    <nav class="tabs-nav" aria-label="Main sections">
-      <button type="button" class="tab-link active" data-tab="intro" aria-selected="true">Introduction</button>
-      <button type="button" class="tab-link" data-tab="project">Project</button>
-      <button type="button" class="tab-link" data-tab="settings">Time and risk settings</button>
-      <button type="button" class="tab-link" data-tab="outputs">Outputs</button>
-      <button type="button" class="tab-link" data-tab="treatments">Treatments</button>
-      <button type="button" class="tab-link" data-tab="benefits">Additional benefits</button>
-      <button type="button" class="tab-link" data-tab="costs">Other costs</button>
-      <button type="button" class="tab-link" data-tab="database">Sources</button>
-      <button type="button" class="tab-link" data-tab="results">Results</button>
-      <button type="button" class="tab-link" data-tab="simulation">Simulation</button>
-      <button type="button" class="tab-link" data-tab="excel">Excel import and export</button>
-      <button type="button" class="tab-link" data-tab="ai">AI interpretation helper</button>
-      <button type="button" class="tab-link" data-tab="appendix">Technical appendix</button>
+    <nav class="tab-nav" aria-label="Main sections">
+      <button class="tab-button active" data-tab-target="inputs">1. Inputs</button>
+      <button class="tab-button" data-tab-target="results">2. Results matrix</button>
+      <button class="tab-button" data-tab-target="snapshot">3. Snapshot &amp; print</button>
+      <button class="tab-button" data-tab-target="excel">4. Excel &amp; export</button>
+      <button class="tab-button" data-tab-target="ai-helper">5. AI helper</button>
     </nav>
 
-    <!-- INTRO TAB -->
-    <section class="tab-panel active show" id="tab-intro" data-tab-panel="intro" aria-hidden="false">
-      <div class="card">
-        <h1>Farming CBA Decision Tool 2</h1>
-        <p>
-          This tool compares farm treatments against a nominated control using standard cost benefit analysis
-          indicators. The default dataset is a faba bean soil amendment trial. You can keep it as a worked example,
-          or replace it using the Excel-first workflow.
-        </p>
-        <p>
-          The Results tab is designed for snapshot decisions. You will see a single comparison table where indicators
-          are rows and treatments are columns, with the control shown alongside all treatments and deltas highlighted.
-          Detailed explanations are optional.
-        </p>
-        <div class="intro-actions">
-          <button id="startBtn-duplicate" class="btn primary" data-tab-jump="project">Go to project setup</button>
-          <button class="btn" data-tab-jump="treatments">Jump to treatments</button>
-          <button class="btn" data-tab-jump="results">Jump to results</button>
-        </div>
-        <div class="callout">
-          <div class="callout-title">Excel-first workflow</div>
-          <div class="callout-text">
-            Download a template, edit in Excel, then upload. The tool will validate and recalibrate the model automatically.
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- PROJECT TAB -->
-    <section class="tab-panel" id="tab-project" data-tab-panel="project" aria-hidden="true">
-      <div class="card">
-        <h2>Project description</h2>
-
-        <div class="row-3">
-          <div class="field">
-            <label for="projectName" data-tooltip="Short title for the farm trial or investment project.">Project name</label>
-            <input id="projectName" type="text" />
-          </div>
-          <div class="field">
-            <label for="projectLead" data-tooltip="Person with overall responsibility for the project.">Project lead</label>
-            <input id="projectLead" type="text" />
-          </div>
-          <div class="field">
-            <label for="analystNames" data-tooltip="People who prepared the cost benefit analysis.">Analyst team</label>
-            <input id="analystNames" type="text" />
-          </div>
-        </div>
-
-        <div class="row-3">
-          <div class="field">
-            <label for="projectTeam" data-tooltip="Delivery partners or trial team involved in implementation.">Partners or trial team</label>
-            <input id="projectTeam" type="text" />
-          </div>
-          <div class="field">
-            <label for="organisation" data-tooltip="Host organisation for the analysis or project.">Organisation</label>
-            <input id="organisation" type="text" />
-          </div>
-          <div class="field">
-            <label for="lastUpdated" data-tooltip="Date when the analysis was last updated.">Last updated</label>
-            <input id="lastUpdated" type="date" />
-          </div>
-        </div>
-
-        <div class="row-3">
-          <div class="field">
-            <label for="contactEmail" data-tooltip="Contact email for questions about the analysis.">Contact email</label>
-            <input id="contactEmail" type="email" />
-          </div>
-          <div class="field">
-            <label for="contactPhone" data-tooltip="Optional phone contact for follow up.">Contact phone</label>
-            <input id="contactPhone" type="tel" />
-          </div>
-          <div class="field"></div>
-        </div>
-
-        <div class="field">
-          <label for="projectSummary" data-tooltip="Short plain language description of the project and trial.">Short summary</label>
-          <textarea id="projectSummary" rows="3"></textarea>
-        </div>
-
-        <div class="field">
-          <label for="projectGoal" data-tooltip="Main goal in terms of production, profit, or risk reduction.">Project goal</label>
-          <textarea id="projectGoal" rows="2"></textarea>
-        </div>
-
-        <div class="row-2">
-          <div class="field">
-            <label for="withProject" data-tooltip="What happens with the treatments or program in place.">With project (change story)</label>
-            <textarea id="withProject" rows="3"></textarea>
-          </div>
-          <div class="field">
-            <label for="withoutProject" data-tooltip="What happens under business as usual conditions.">Without project (baseline story)</label>
-            <textarea id="withoutProject" rows="3"></textarea>
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="projectObjectives" data-tooltip="Specific measurable objectives for the project.">Key objectives</label>
-          <textarea id="projectObjectives" rows="3"></textarea>
-        </div>
-
-        <div class="field">
-          <label for="projectActivities" data-tooltip="Main activities that deliver the change (for example extension, training, soil treatments).">Main activities</label>
-          <textarea id="projectActivities" rows="3"></textarea>
-        </div>
-
-        <div class="field">
-          <label for="stakeholderGroups" data-tooltip="Key stakeholder groups who gain, lose, or are involved.">Stakeholder groups</label>
-          <textarea id="stakeholderGroups" rows="3"></textarea>
-        </div>
-      </div>
-    </section>
-
-    <!-- SETTINGS TAB -->
-    <section class="tab-panel" id="tab-settings" data-tab-panel="settings" aria-hidden="true">
-      <div class="card">
-        <h2>Time horizon and discounting</h2>
-
-        <div class="row-4">
-          <div class="field">
-            <label for="startYear" data-tooltip="Calendar year when the analysis starts (year 0 cashflows).">Analysis start year</label>
-            <input id="startYear" type="number" />
-          </div>
-          <div class="field">
-            <label for="projectStartYear" data-tooltip="Year when the project or treatments begin on farm.">Project start year</label>
-            <input id="projectStartYear" type="number" />
-          </div>
-          <div class="field">
-            <label for="years" data-tooltip="Number of years over which costs and benefits are counted.">Years of analysis</label>
-            <input id="years" type="number" min="1" />
-          </div>
-          <div class="field">
-            <label for="systemType" data-tooltip="Single farm analysis or roll out across multiple farms.">System type</label>
-            <select id="systemType">
-              <option value="single">Single farm or system</option>
-              <option value="multiple">Multiple farms or systems</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="row-4">
-          <div class="field">
-            <label for="discBase" data-tooltip="Central discount rate used for present value calculations.">Discount rate (base, percent)</label>
-            <input id="discBase" type="number" step="0.1" />
-          </div>
-          <div class="field">
-            <label for="discLow" data-tooltip="Lower bound for discount rate used in the simulation.">Discount rate (low, percent)</label>
-            <input id="discLow" type="number" step="0.1" />
-          </div>
-          <div class="field">
-            <label for="discHigh" data-tooltip="Upper bound for discount rate used in the simulation.">Discount rate (high, percent)</label>
-            <input id="discHigh" type="number" step="0.1" />
-          </div>
-          <div class="field">
-            <label for="outputAssumptions" data-tooltip="Any general assumptions about prices, yields, or trial design.">Notes on general assumptions</label>
-            <textarea id="outputAssumptions" rows="2"></textarea>
-          </div>
-        </div>
-
-        <div class="row-4">
-          <div class="field">
-            <label for="mirrFinance" data-tooltip="Finance rate used to discount negative cashflows in MIRR.">MIRR finance rate (percent)</label>
-            <input id="mirrFinance" type="number" step="0.1" />
-          </div>
-          <div class="field">
-            <label for="mirrReinvest" data-tooltip="Reinvestment rate applied to positive cashflows in MIRR.">MIRR reinvestment rate (percent)</label>
-            <input id="mirrReinvest" type="number" step="0.1" />
-          </div>
-          <div class="field"></div>
-          <div class="field"></div>
-        </div>
-
-        <h3>Discount schedule by period</h3>
-        <p class="small muted">
-          If you need period-specific discounting, edit below. Otherwise the base discount rate is used for results.
-        </p>
-
-        <div class="table-scroll">
-          <table class="summary-table">
-            <thead>
-              <tr>
-                <th>Period</th>
-                <th>Low (percent)</th>
-                <th>Base (percent)</th>
-                <th>High (percent)</th>
-              </tr>
-            </thead>
-            <tbody id="discScheduleBody"></tbody>
-          </table>
-        </div>
-
-        <h3>Adoption settings</h3>
-        <p class="small muted">
-          Adoption is applied as a multiplier to benefits and costs. You can override adoption per treatment in the Treatments tab.
-        </p>
-
-        <div class="row-3">
-          <div class="field">
-            <label for="adoptLow" data-tooltip="Lower bound for the share of the target area that adopts the treatment.">Adoption low (multiplier)</label>
-            <input id="adoptLow" type="number" step="0.05" min="0" max="1" />
-          </div>
-          <div class="field">
-            <label for="adoptBase" data-tooltip="Central assumption for the share of the target area that adopts.">Adoption base (multiplier)</label>
-            <input id="adoptBase" type="number" step="0.05" min="0" max="1" />
-          </div>
-          <div class="field">
-            <label for="adoptHigh" data-tooltip="Upper bound for the share of the target area that adopts.">Adoption high (multiplier)</label>
-            <input id="adoptHigh" type="number" step="0.05" min="0" max="1" />
-          </div>
-        </div>
-
-        <h3>Risk settings</h3>
-        <p class="small muted">
-          Risk reduces effective benefits by default. You can choose whether individual benefits link to risk in the Additional benefits tab.
-        </p>
-
-        <div class="row-3">
-          <div class="field">
-            <label for="riskLow" data-tooltip="Lower bound for overall risk that benefits are not fully realised.">Overall risk low</label>
-            <input id="riskLow" type="number" step="0.01" min="0" max="1" />
-          </div>
-          <div class="field">
-            <label for="riskBase" data-tooltip="Central estimate of overall risk that reduces effective benefits.">Overall risk base</label>
-            <input id="riskBase" type="number" step="0.01" min="0" max="1" />
-          </div>
-          <div class="field">
-            <label for="riskHigh" data-tooltip="Upper bound for overall risk that reduces effective benefits.">Overall risk high</label>
-            <input id="riskHigh" type="number" step="0.01" min="0" max="1" />
-          </div>
-        </div>
-
-        <p class="small muted">Optional: build a combined base risk from component risks.</p>
-
-        <div class="row-5">
-          <div class="field">
-            <label for="rTech" data-tooltip="Risk that the technical performance of the treatment is lower than expected.">Technical risk</label>
-            <input id="rTech" type="number" step="0.01" min="0" max="1" />
-          </div>
-          <div class="field">
-            <label for="rNonCoop" data-tooltip="Risk that farmers or partners do not cooperate or maintain practices.">Non cooperation risk</label>
-            <input id="rNonCoop" type="number" step="0.01" min="0" max="1" />
-          </div>
-          <div class="field">
-            <label for="rSocio" data-tooltip="Social or institutional risks that limit implementation.">Social risk</label>
-            <input id="rSocio" type="number" step="0.01" min="0" max="1" />
-          </div>
-          <div class="field">
-            <label for="rFin" data-tooltip="Financial risks such as budget cuts or price changes.">Financial risk</label>
-            <input id="rFin" type="number" step="0.01" min="0" max="1" />
-          </div>
-          <div class="field">
-            <label for="rMan" data-tooltip="Management risks including planning, staffing, and coordination.">Management risk</label>
-            <input id="rMan" type="number" step="0.01" min="0" max="1" />
-          </div>
-        </div>
-
-        <div class="row-2">
-          <div class="field">
-            <button id="calcCombinedRisk" class="btn">Calculate combined base risk</button>
-          </div>
-          <div class="field">
-            <div id="combinedRiskOut" class="metric">
-              <div class="label">Combined risk</div>
-              <div class="value small muted">Not calculated yet</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- OUTPUTS TAB -->
-    <section class="tab-panel" id="tab-outputs" data-tab-panel="outputs" aria-hidden="true">
-      <div class="card">
-        <h2>Outputs and valuation</h2>
-        <p>
-          Outputs are the things that change because of a treatment. Each output has a value per unit.
-          Treatments define deltas for outputs relative to the control.
-        </p>
-        <div class="toolbar">
-          <button id="addOutput" class="btn small">Add output</button>
-        </div>
-        <div id="outputsList" class="item-list"></div>
-      </div>
-    </section>
-
-    <!-- TREATMENTS TAB -->
-    <section class="tab-panel" id="tab-treatments" data-tab-panel="treatments" aria-hidden="true">
-      <div class="card">
-        <h2>Treatments and control</h2>
-        <p class="small muted">
-          For each treatment, costs are entered as components. Capital cost (year 0) is placed before total cost, and total cost
-          updates automatically when components change. The control must be flagged to enable control comparison in Results.
-        </p>
-
-        <div class="toolbar">
-          <button id="addTreatment" class="btn small">Add treatment</button>
-          <button id="rebuildFromDefault" class="btn small ghost" data-tooltip="Rebuild treatments from the embedded faba bean default dataset.">Restore default faba bean treatments</button>
-        </div>
-
-        <div id="treatmentsList" class="item-list"></div>
-
-        <div class="card subtle">
-          <h3 class="mb-8">Validation checks</h3>
-          <div id="treatmentValidation" class="small muted">No issues detected.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- BENEFITS TAB -->
-    <section class="tab-panel" id="tab-benefits" data-tab-panel="benefits" aria-hidden="true">
-      <div class="card">
-        <h2>Additional benefits</h2>
-        <p>
-          Use this section for benefits not captured by the Outputs tab, such as avoided costs, reduced risk,
-          or asset value changes. These items can be linked to adoption and risk.
-        </p>
-        <div class="toolbar">
-          <button id="addBenefit" class="btn small">Add benefit</button>
-        </div>
-        <div id="benefitsList" class="item-list"></div>
-      </div>
-    </section>
-
-    <!-- COSTS TAB -->
-    <section class="tab-panel" id="tab-costs" data-tab-panel="costs" aria-hidden="true">
-      <div class="card">
-        <h2>Other project costs</h2>
-        <p>
-          Enter project-level costs that apply across treatments, such as coordination, monitoring, or extension.
-          Capital items can include depreciation information (for reporting only). These are not used to hide or exclude any treatment.
-        </p>
-        <div class="toolbar">
-          <button id="addCost" class="btn small">Add cost item</button>
-        </div>
-        <div id="costsList" class="item-list"></div>
-      </div>
-    </section>
-
-    <!-- DATABASE TAB -->
-    <section class="tab-panel" id="tab-database" data-tab-panel="database" aria-hidden="true">
-      <div class="card">
-        <h2>Sources and database tagging</h2>
-        <p class="small muted">
-          Record sources for later traceability. These fields do not change calculations.
-        </p>
-
-        <h3>Outputs</h3>
-        <div id="dbOutputs" class="item-list"></div>
-
-        <h3>Treatments</h3>
-        <div id="dbTreatments" class="item-list"></div>
-      </div>
-    </section>
-
-    <!-- RESULTS TAB -->
-    <section class="tab-panel" id="tab-results" data-tab-panel="results" aria-hidden="true">
-      <div class="card">
-        <div class="results-header">
-          <h2>Results snapshot: control vs treatments</h2>
-          <div class="results-actions">
-            <button id="recalc" class="btn primary">Recalculate</button>
-            <button id="copyResultsTable" class="btn ghost" data-tooltip="Copies a tab-separated version of the main comparison table for pasting into Word.">Copy table to clipboard</button>
-            <button id="exportExcelResults" class="btn ghost">Export Excel</button>
-            <button id="exportPdf" class="btn ghost">Print or export PDF</button>
-          </div>
-        </div>
-
-        <div class="callout">
-          <div class="callout-title">How to read this table</div>
-          <div class="callout-text">
-            The control is shown as its own column. Each treatment column shows the treatment value, and the change relative to the control
-            beneath it. Ranking is based on benefit cost ratio by default.
-          </div>
-        </div>
-
-        <div id="resultsComparison" class="table-wrap"></div>
-
-        <div class="row-2 mt-12">
-          <div class="card subtle">
-            <h3 class="mb-8">Quick ranking</h3>
-            <div class="row-2">
-              <div class="field">
-                <label for="rankMetric" data-tooltip="Choose the metric used for ranking the treatments in the snapshot view.">Rank by</label>
-                <select id="rankMetric">
-                  <option value="bcr">Benefit cost ratio</option>
-                  <option value="npv">Net present value</option>
-                  <option value="roi">Return on investment</option>
-                </select>
+    <main class="app-main">
+      <!-- INPUTS TAB -->
+      <section id="tab-inputs" class="tab-panel active" aria-label="Inputs">
+        <div class="layout-two-col">
+          <section class="card">
+            <header class="card-header">
+              <h2>1. Farm and analysis settings</h2>
+            </header>
+            <div class="card-body grid-form">
+              <div class="form-group">
+                <label for="farmName">
+                  Farm / project name
+                  <span class="tooltip" data-tooltip="Optional label shown on snapshots and exports.">
+                    ?
+                  </span>
+                </label>
+                <input id="farmName" type="text" placeholder="e.g. North paddock upgrade" />
               </div>
-              <div class="field">
-                <label for="showDeltaMode" data-tooltip="Choose whether deltas in the table are shown as absolute dollar changes or per hectare changes.">Delta display</label>
-                <select id="showDeltaMode">
-                  <option value="total">Total project delta</option>
-                  <option value="perha">Per hectare delta</option>
-                </select>
+
+              <div class="form-group">
+                <label for="timeHorizon">
+                  Time horizon used in Excel (years)
+                  <span class="tooltip" data-tooltip="Number of years used when calculating PV benefits and PV costs in your spreadsheet.">
+                    ?
+                  </span>
+                </label>
+                <input id="timeHorizon" type="number" min="1" step="1" />
+              </div>
+
+              <div class="form-group">
+                <label for="discountRate">
+                  Discount rate used in Excel (% per year)
+                  <span class="tooltip" data-tooltip="The discount rate already used in your PV calculations (e.g. 7%). The tool does not recalculate PVs, it just uses the PV figures you enter.">
+                    ?
+                  </span>
+                </label>
+                <input id="discountRate" type="number" min="0" step="0.1" />
+              </div>
+
+              <div class="form-group">
+                <label for="currency">
+                  Currency
+                  <span class="tooltip" data-tooltip="Short code or symbol used in your Excel sheet, shown on all outputs.">
+                    ?
+                  </span>
+                </label>
+                <input id="currency" type="text" maxlength="6" placeholder="e.g. AUD or $" />
+              </div>
+
+              <div class="form-group">
+                <label for="notes">
+                  Notes for this analysis
+                  <span class="tooltip" data-tooltip="Optional short note about assumptions or context. Appears on the snapshot and AI helper tabs.">
+                    ?
+                  </span>
+                </label>
+                <textarea id="notes" rows="3" placeholder="Key assumptions, reference to your Excel file, or anything you want to remember."></textarea>
               </div>
             </div>
-            <div id="treatmentSummary" class="item-list"></div>
-          </div>
+          </section>
 
-          <div class="card subtle">
-            <h3 class="mb-8">Optional details</h3>
-            <details class="accordion">
-              <summary>Show formula notes and project-wide aggregates</summary>
-              <div class="accordion-body">
-                <div id="resultsDetails" class="small"></div>
-              </div>
-            </details>
-
-            <details class="accordion">
-              <summary>Show time horizon check (NPV by years)</summary>
-              <div class="accordion-body">
-                <div class="row-2">
-                  <div class="field">
-                    <div class="table-scroll">
-                      <table id="timeProjectionTable" class="summary-table">
-                        <thead>
-                          <tr>
-                            <th>Years</th>
-                            <th>PV benefits</th>
-                            <th>PV costs</th>
-                            <th>NPV</th>
-                            <th>BCR</th>
-                          </tr>
-                        </thead>
-                        <tbody></tbody>
-                      </table>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <canvas id="timeNpvChart" width="520" height="300"></canvas>
-                  </div>
-                </div>
-              </div>
-            </details>
-          </div>
-        </div>
-
-        <div class="results-footer">
-          <button id="exportCsv" class="btn">Export CSV (results)</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- SIMULATION TAB -->
-    <section class="tab-panel" id="tab-simulation" data-tab-panel="simulation" aria-hidden="true">
-      <div class="card">
-        <div class="results-header">
-          <h2>Monte Carlo simulation</h2>
-          <button id="runSim" class="btn primary">Run simulation</button>
-        </div>
-
-        <p class="small muted">
-          Simulation varies discount rates, adoption and risk within your ranges. Use it to understand uncertainty.
-          This does not impose decision rules and does not hide low-performing treatments.
-        </p>
-
-        <div class="row-4">
-          <div class="field">
-            <label for="simN" data-tooltip="Number of runs in the simulation. Larger values are smoother but slower.">Number of runs</label>
-            <input id="simN" type="number" min="100" step="100" />
-          </div>
-          <div class="field">
-            <label for="targetBCR" data-tooltip="Optional reference value for summarising probabilities. This does not enforce thresholds in the tool.">Reference BCR (for probability summary)</label>
-            <input id="targetBCR" type="number" step="0.1" min="0" />
-            <div class="small muted">Current reference: <span id="simBcrTargetLabel">2</span></div>
-          </div>
-          <div class="field">
-            <label for="randSeed" data-tooltip="Optional random seed for reproducibility.">Random seed (optional)</label>
-            <input id="randSeed" type="number" />
-          </div>
-          <div class="field">
-            <label for="simVarPct" data-tooltip="Percent variation applied to selected inputs.">Variation size (percent)</label>
-            <input id="simVarPct" type="number" step="1" min="0" max="100" />
-          </div>
-        </div>
-
-        <div class="row-3">
-          <div class="field">
-            <label for="simVaryOutputs" data-tooltip="If yes, output values are varied within the chosen range.">Vary output values</label>
-            <select id="simVaryOutputs">
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="simVaryTreatCosts" data-tooltip="If yes, treatment costs are varied within the chosen range.">Vary treatment costs</label>
-            <select id="simVaryTreatCosts">
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="simVaryInputCosts" data-tooltip="If yes, project-level costs are varied within the chosen range.">Vary other project costs</label>
-            <select id="simVaryInputCosts">
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="field">
-          <div id="simStatus" class="small muted">Simulation not run yet.</div>
-        </div>
-
-        <hr />
-
-        <h3>Simulation summary</h3>
-        <div class="row-2">
-          <div class="card subtle">
-            <h4>Net present value</h4>
-            <div class="row-4 metrics-grid">
-              <div class="field"><label>Minimum</label><div class="metric"><div id="simNpvMin" class="value">n/a</div></div></div>
-              <div class="field"><label>Maximum</label><div class="metric"><div id="simNpvMax" class="value">n/a</div></div></div>
-              <div class="field"><label>Mean</label><div class="metric"><div id="simNpvMean" class="value">n/a</div></div></div>
-              <div class="field"><label>Median</label><div class="metric"><div id="simNpvMedian" class="value">n/a</div></div></div>
+          <section class="card">
+            <header class="card-header">
+              <h2>2. Quick guidance</h2>
+            </header>
+            <div class="card-body guidance-text">
+              <p>
+                This tool summarises <strong>PV benefits</strong> and <strong>PV costs</strong> you have already calculated in Excel.
+                It does not change your numbers; it simply:
+              </p>
+              <ul>
+                <li>Calculates <strong>NPV</strong> (PV benefits minus PV costs) for each treatment.</li>
+                <li>Calculates <strong>BCR</strong> (PV benefits divided by PV costs).</li>
+                <li>Calculates <strong>ROI</strong> (NPV per dollar of PV cost).</li>
+                <li>Compares each treatment with the <strong>control</strong>.</li>
+              </ul>
+              <p>
+                Use your Excel workbook to work out PV benefits and PV costs for each treatment, including all components
+                such as yield, cost savings, risk reduction, and environmental benefits. Then paste those numbers into the table below.
+              </p>
+              <p class="muted">
+                The tool highlights trade-offs and differences. It does <strong>not</strong> tell you what to choose or set any pass/fail rule.
+              </p>
             </div>
-            <div class="row-2 metrics-grid">
-              <div class="field"><label>Probability NPV &gt; 0</label><div class="metric"><div id="simNpvProb" class="value">n/a</div></div></div>
-              <div class="field"></div>
-            </div>
-          </div>
-
-          <div class="card subtle">
-            <h4>Benefit cost ratio</h4>
-            <div class="row-4 metrics-grid">
-              <div class="field"><label>Minimum</label><div class="metric"><div id="simBcrMin" class="value">n/a</div></div></div>
-              <div class="field"><label>Maximum</label><div class="metric"><div id="simBcrMax" class="value">n/a</div></div></div>
-              <div class="field"><label>Mean</label><div class="metric"><div id="simBcrMean" class="value">n/a</div></div></div>
-              <div class="field"><label>Median</label><div class="metric"><div id="simBcrMedian" class="value">n/a</div></div></div>
-            </div>
-            <div class="row-3 metrics-grid">
-              <div class="field"><label>Probability BCR &gt; 1</label><div class="metric"><div id="simBcrProb1" class="value">n/a</div></div></div>
-              <div class="field"><label>Probability BCR &gt; reference</label><div class="metric"><div id="simBcrProbTarget" class="value">n/a</div></div></div>
-              <div class="field"></div>
-            </div>
-          </div>
+          </section>
         </div>
 
-        <hr />
-
-        <h3>Distributions</h3>
-        <div class="row-2">
-          <div class="field"><canvas id="histNpv" width="520" height="300"></canvas></div>
-          <div class="field"><canvas id="histBcr" width="520" height="300"></canvas></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- EXCEL TAB -->
-    <section class="tab-panel" id="tab-excel" data-tab-panel="excel" aria-hidden="true">
-      <div class="card">
-        <h2>Excel import and export (Excel-first workflow)</h2>
-        <p>
-          Step 1: Download a template (blank or scenario-specific). Step 2: Edit in Excel and save. Step 3: Upload the workbook.
-          The tool validates required sheets and columns, then recalibrates and updates results automatically.
-        </p>
-
-        <div class="row-2">
-          <div class="field">
-            <h3>Download templates</h3>
-            <button id="downloadTemplate" class="btn">Download blank template</button>
-            <button id="downloadSample" class="btn ghost">Download template filled with current scenario</button>
-            <div class="small muted mt-8">
-              The scenario workbook includes the full embedded faba bean dataset sheet as supplied in the default example.
+        <section class="card card-wide">
+          <header class="card-header">
+            <div class="card-header-main">
+              <h2>3. PV benefits and PV costs by treatment</h2>
+              <p class="card-subtitle">
+                Enter PV figures from your Excel sheet. You can add or remove treatments as needed.
+              </p>
             </div>
-          </div>
-
-          <div class="field">
-            <h3>Upload workbook</h3>
-            <div class="upload-row">
-              <input type="file" id="excelFile" accept=".xlsx,.xls" />
-              <button id="importExcelAuto" class="btn primary">Validate and import</button>
+            <div class="card-header-actions">
+              <button id="addTreatmentBtn" class="btn btn-secondary" type="button">
+                + Add treatment
+              </button>
             </div>
-            <div id="excelStatus" class="small muted mt-8">No file imported yet.</div>
-            <details class="accordion mt-12">
-              <summary>Plain-language instructions</summary>
-              <div class="accordion-body small">
-                <p>
-                  Use the <strong>Treatments</strong> sheet for treatment names, control flag, areas, adoption, and cost components.
-                  Use the <strong>Outputs</strong> sheet for output values (for example grain price per tonne) and units.
-                  For the default dataset, the embedded faba bean sheet is included for traceability and optional recalibration.
-                </p>
-                <p>
-                  If Excel contains missing or non-numeric costs (for example a question mark), the tool will import the row but flag it
-                  in the Treatments tab so you can correct it. Results will update as soon as you fix the value.
-                </p>
-              </div>
-            </details>
-          </div>
-        </div>
-      </div>
-    </section>
+          </header>
 
-    <!-- AI TAB -->
-    <section class="tab-panel" id="tab-ai" data-tab-panel="ai" aria-hidden="true">
-      <div class="card">
-        <h2>AI interpretation helper (non-prescriptive)</h2>
-        <p>
-          This tool prepares a structured prompt you can paste into any large language model (Copilot, ChatGPT, or similar).
-          The prompt explains the indicators, summarises performance relative to the control, and highlights trade-offs.
-          It does not recommend decisions or apply hidden thresholds.
-        </p>
+          <div class="card-body">
+            <div class="table-wrapper">
+              <table class="table table-input" aria-label="PV inputs per treatment">
+                <thead>
+                  <tr>
+                    <th>Role</th>
+                    <th>Treatment name</th>
+                    <th>
+                      PV benefits: market &amp; yield
+                      <span class="tooltip" data-tooltip="PV of extra revenue from yield or price gains. Calculated in Excel.">
+                        ?
+                      </span>
+                    </th>
+                    <th>
+                      PV benefits: cost savings
+                      <span class="tooltip" data-tooltip="PV of reduced input, labour, or maintenance costs. Calculated in Excel.">
+                        ?
+                      </span>
+                    </th>
+                    <th>
+                      PV benefits: risk &amp; resilience
+                      <span class="tooltip" data-tooltip="PV of avoided losses or improved resilience (e.g. fewer crop failures).">
+                        ?
+                      </span>
+                    </th>
+                    <th>
+                      PV benefits: environmental &amp; other
+                      <span class="tooltip" data-tooltip="PV of environmental, soil, or other quantified benefits.">
+                        ?
+                      </span>
+                    </th>
+                    <th>
+                      PV costs: total
+                      <span class="tooltip" data-tooltip="PV of all costs, including upfront capital, operating, and maintenance costs.">
+                        ?
+                      </span>
+                    </th>
+                    <th>
+                      Remove
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="treatmentsTbody">
+                  <!-- Filled by script.js -->
+                </tbody>
+              </table>
+            </div>
 
-        <div class="row-2">
-          <div class="field">
-            <button id="copyAiPrompt" class="btn primary">Copy AI interpretation prompt</button>
-            <button id="downloadAiBrief" class="btn ghost" data-tooltip="Generates a printable brief using the AI prompt content as the input text for your chosen model.">Download brief starter (DOC-friendly)</button>
-            <p class="small muted mt-8">
-              Paste the prompt into your preferred model and request a plain-English interpretation. If a treatment has low BCR,
-              the prompt asks for practical improvement ideas (costs, yield, price, agronomy) as guidance, not rules.
+            <p class="muted table-hint">
+              All PV figures should be in the <strong>same currency</strong> and calculated with the
+              <strong>same discount rate and time horizon</strong> you entered above.
             </p>
           </div>
-          <div class="field">
-            <label for="aiPreview" data-tooltip="This is exactly what will be copied to your clipboard.">Prompt preview</label>
-            <textarea id="aiPreview" rows="16" readonly class="mono"></textarea>
-          </div>
-        </div>
-      </div>
-    </section>
+        </section>
+      </section>
 
-    <!-- TECHNICAL APPENDIX TAB -->
-    <section class="tab-panel" id="tab-appendix" data-tab-panel="appendix" aria-hidden="true">
-      <div class="card">
-        <h2>Technical appendix and user guide</h2>
-        <p>
-          The appendix explains formulas, assumptions, and the Excel workflow. It is designed to be readable for farmers and advisors.
-        </p>
-        <div class="row-2">
-          <div class="field">
-            <button
-              type="button"
-              class="btn primary"
-              onclick="window.open('technical-appendix.html','_blank','noopener');"
-            >
-              Open full technical appendix
-            </button>
-            <p class="small muted mt-8">
-              Opens in a separate tab so you can keep working in the main tool.
-            </p>
-          </div>
-          <div class="field">
-            <label class="small muted">Direct link:</label>
-            <a href="technical-appendix.html" target="_blank" rel="noopener" class="small">Open technical-appendix.html in a new tab</a>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
+      <!-- RESULTS TAB -->
+      <section id="tab-results" class="tab-panel" aria-label="Results matrix">
+        <section class="card card-wide">
+          <header class="card-header">
+            <div class="card-header-main">
+              <h2>Results matrix</h2>
+              <p class="card-subtitle">
+                Summary of PV benefits, PV costs, NPV, benefit–cost ratio (BCR), and return on investment (ROI).
+              </p>
+            </div>
+            <div class="card-header-actions">
+              <button id="refreshResultsBtn" class="btn btn-secondary" type="button">
+                Refresh results
+              </button>
+            </div>
+          </header>
 
-  <footer class="app-footer">
-    <div class="footer-left">
-      <span class="small muted">Farming CBA Decision Tool 2, Newcastle Business School</span>
-    </div>
-    <div class="footer-right">
-      <button id="exportCsvFoot" class="btn small">Export CSV</button>
-      <button id="exportPdfFoot" class="btn small ghost">Print or PDF</button>
-    </div>
-  </footer>
+          <div class="card-body">
+            <div class="summary-strip" id="headlineSummary">
+              <!-- Filled by script.js -->
+            </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="app.js"></script>
+            <div class="table-wrapper">
+              <table class="table table-results" aria-label="Results matrix">
+                <thead>
+                  <tr>
+                    <th>Role</th>
+                    <th>Treatment</th>
+                    <th>PV benefits (total)</th>
+                    <th>PV costs (total)</th>
+                    <th>NPV</th>
+                    <th>BCR</th>
+                    <th>ROI</th>
+                    <th>Δ NPV vs control</th>
+                    <th>Δ PV benefits vs control</th>
+                    <th>Δ PV costs vs control</th>
+                  </tr>
+                </thead>
+                <tbody id="resultsTbody">
+                  <!-- Filled by script.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- SNAPSHOT TAB -->
+      <section id="tab-snapshot" class="tab-panel" aria-label="Snapshot and print">
+        <section class="card card-wide snapshot-card" id="snapshotCard">
+          <header class="card-header">
+            <div class="card-header-main">
+              <h2>Snapshot summary</h2>
+              <p class="card-subtitle">
+                Print-friendly summary of the analysis for discussion with farmers and advisers.
+              </p>
+            </div>
+            <div class="card-header-actions">
+              <button id="printSnapshotBtn" class="btn btn-primary" type="button">
+                Print / Save as PDF
+              </button>
+            </div>
+          </header>
+
+          <div class="card-body snapshot-body">
+            <section class="snapshot-section" id="snapshotContext">
+              <!-- Filled by script.js -->
+            </section>
+
+            <section class="snapshot-section">
+              <h3>Headline results</h3>
+              <div id="snapshotHeadline">
+                <!-- Filled by script.js -->
+              </div>
+            </section>
+
+            <section class="snapshot-section">
+              <h3>Treatment-by-treatment summary</h3>
+              <div class="table-wrapper">
+                <table class="table table-compact" aria-label="Snapshot results">
+                  <thead>
+                    <tr>
+                      <th>Role</th>
+                      <th>Treatment</th>
+                      <th>PV benefits</th>
+                      <th>PV costs</th>
+                      <th>NPV</th>
+                      <th>BCR</th>
+                      <th>ROI</th>
+                    </tr>
+                  </thead>
+                  <tbody id="snapshotTbody">
+                    <!-- Filled by script.js -->
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="snapshot-section">
+              <h3>How to read these numbers</h3>
+              <ul class="snapshot-explainer">
+                <li><strong>NPV</strong> is PV benefits minus PV costs. A higher NPV means a larger net gain above the control under your assumptions.</li>
+                <li><strong>BCR</strong> is PV benefits divided by PV costs. Values above 1 mean benefits exceed costs, but the size of that margin still matters.</li>
+                <li><strong>ROI</strong> is NPV divided by PV costs. It shows the net gain per dollar of PV cost.</li>
+                <li>
+                  Results depend entirely on the PV figures entered from Excel. If key assumptions change (prices, yields, input costs, failure rates),
+                  update the Excel sheet and refresh this tool.
+                </li>
+                <li>
+                  Use these results to discuss trade-offs. They highlight which treatments deliver more or less value, but they do not replace local knowledge,
+                  risk preferences, or non-monetary considerations.
+                </li>
+              </ul>
+            </section>
+          </div>
+        </section>
+      </section>
+
+      <!-- EXCEL & EXPORT TAB -->
+      <section id="tab-excel" class="tab-panel" aria-label="Excel and export">
+        <section class="card card-wide">
+          <header class="card-header">
+            <div class="card-header-main">
+              <h2>Excel link and export</h2>
+              <p class="card-subtitle">
+                Copy results into Excel or another program, and keep a clean record of your assumptions and outputs.
+              </p>
+            </div>
+            <div class="card-header-actions">
+              <button id="copyTsvBtn" class="btn btn-primary" type="button">
+                Copy results (tab-separated)
+              </button>
+            </div>
+          </header>
+
+          <div class="card-body">
+            <section class="excel-section">
+              <h3>Current results table (copy-friendly)</h3>
+              <textarea id="excelExportArea" class="excel-textarea" rows="10" spellcheck="false"></textarea>
+              <p class="muted">
+                Select all and copy, or use the “Copy results” button above. Paste into Excel, Google Sheets, R, or Stata as a tab-separated table.
+              </p>
+            </section>
+
+            <section class="excel-section">
+              <h3>Checklist for your Excel workbook</h3>
+              <ul>
+                <li>Make sure all PV benefits and PV costs are in the same currency and price year.</li>
+                <li>Confirm that the same discount rate and time horizon are used for all treatments.</li>
+                <li>Where possible, separate benefits into market, cost savings, risk/resilience, and environmental/other in Excel, then sum to the PV totals used here.</li>
+                <li>Keep a clear link between this tool and the exact sheet or file name used for the PV calculations.</li>
+              </ul>
+            </section>
+          </div>
+        </section>
+      </section>
+
+      <!-- AI HELPER TAB -->
+      <section id="tab-ai-helper" class="tab-panel" aria-label="AI helper">
+        <section class="card card-wide">
+          <header class="card-header">
+            <div class="card-header-main">
+              <h2>AI helper prompt</h2>
+              <p class="card-subtitle">
+                Use this text with your preferred AI assistant to generate a two to three page, farmer-friendly interpretation.
+              </p>
+            </div>
+            <div class="card-header-actions">
+              <button id="refreshAiHelperBtn" class="btn btn-secondary" type="button">
+                Refresh AI prompt
+              </button>
+            </div>
+          </header>
+
+          <div class="card-body">
+            <section class="ai-section">
+              <h3>Instructions</h3>
+              <p>
+                The text below summarises your farm, assumptions, and the PV results from this tool. You can copy and paste it into an AI assistant
+                and ask for a plain-language explanation of what is driving PV benefits, PV costs, NPV, BCR, and ROI, without telling you which option to choose.
+              </p>
+            </section>
+
+            <section class="ai-section">
+              <h3>Copy-and-paste AI prompt</h3>
+              <textarea id="aiHelperArea" class="excel-textarea" rows="14" spellcheck="false"></textarea>
+              <p class="muted">
+                After making changes to inputs, click “Refresh AI prompt” so the summary stays in sync with your latest results.
+              </p>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span class="muted">
+        This tool summarises PV results from your own spreadsheets. Check your underlying Excel analysis whenever assumptions change.
+      </span>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
