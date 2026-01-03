@@ -1,4 +1,4 @@
-// script.js – Farming CBA Decision Tool 2 (advanced analysis, scenarios, CSV import)
+// script.js – Farming CBA Decision Tool 2 ( analysis, scenarios, CSV import)
 document.addEventListener('DOMContentLoaded', function () {
   'use strict';
 
