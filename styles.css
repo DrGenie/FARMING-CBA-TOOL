@@ -1,5 +1,5 @@
 /* styles.css (FULL, commercial-grade for Farming CBA Decision Tool 2:
-   results matrix, snapshot-first, Excel-first workflow, AI helper, print-safe, tooltips near labels) */
+   results matrix, snapshot-first, Excel-first workflow, AI helper, print-safe, tooltips near labels, local persistence) */
 
 :root {
   --color-bg: #f3f4f6;
