@@ -1,419 +1,739 @@
-<!doctype html>
+<!-- index.html -->
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Farming CBA Decision Tool 2</title>
-
-  <!-- World Bank–style typography and clean layout relies on styles.css (recommended).
-       This file provides the complete, aligned HTML structure and IDs used by app.js. -->
+  <meta charset="UTF-8" />
+  <title>Faba Beans Trial CBA Decision Aid – Newcastle Business School</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- Optional: XLSX (enables Excel upload + workbook export). If not present, tool still works with TSV/CSV. -->
-  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-  <script defer src="app.js"></script>
+  <!-- Chart.js for plots -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+  <!-- XLSX for Excel-style exports (used if available) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
 </head>
+<body data-theme="worldbank-light">
+  <div id="appRoot">
+    <!-- Toasts -->
+    <div id="toastHost" aria-live="polite" aria-atomic="true"></div>
+    <div id="toastRegion" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
-<body>
-  <header class="wb-header">
-    <div class="wb-header__inner">
-      <div class="wb-brand">
-        <div class="wb-mark" aria-hidden="true">WB</div>
-        <div class="wb-brand__text">
-          <div class="wb-title">Farming CBA Decision Tool 2</div>
-          <div class="wb-subtitle">Control-centric trial economics and sensitivity analysis</div>
-        </div>
-      </div>
-
-      <div class="wb-header__meta">
-        <div class="wb-pill">
-          <span class="wb-pill__label">Dataset</span>
-          <span class="wb-pill__value" id="headerDatasetName">None loaded</span>
-        </div>
-        <div class="wb-pill">
-          <span class="wb-pill__label">Status</span>
-          <span class="wb-pill__value" id="lastUpdatedStamp">Updated</span>
-        </div>
+    <!-- Modal (generic, used for confirmations / messages if needed) -->
+    <div id="modalOverlay" class="modal-overlay" hidden>
+      <div id="modal" class="modal">
+        <header class="modal-header">
+          <h2 id="modalTitle">Notice</h2>
+          <button type="button" id="modalCloseBtn" class="icon-btn" aria-label="Close dialog">✕</button>
+        </header>
+        <div id="modalBody" class="modal-body"></div>
+        <footer class="modal-footer">
+          <button type="button" id="modalOkBtn" class="btn-primary">OK</button>
+        </footer>
       </div>
     </div>
 
-    <nav class="wb-nav" aria-label="Primary">
-      <button class="tab-btn" data-tab="intro" type="button">Introduction</button>
-      <button class="tab-btn" data-tab="import" type="button">Data Import</button>
-      <button class="tab-btn" data-tab="config" type="button">Configuration</button>
-      <button class="tab-btn active" data-tab="results" type="button">Results</button>
-      <button class="tab-btn" data-tab="sensitivity" type="button">Sensitivity</button>
-      <button class="tab-btn" data-tab="ai" type="button">AI Briefing</button>
-      <button class="tab-btn" data-tab="appendix" type="button">Appendix</button>
+    <!-- Header -->
+    <header class="app-header">
+      <div class="app-header-left">
+        <div class="app-logo-circle">F</div>
+        <div class="app-title-block">
+          <h1>Faba Beans Trial Cost–Benefit Decision Aid</h1>
+          <p class="app-subtitle">
+            Newcastle Business School • Control-centred economic comparison of soil and nutrition treatments
+          </p>
+        </div>
+      </div>
+      <div class="app-header-right">
+        <div class="badge badge-live">Premium prototype</div>
+        <button type="button" id="openTechnicalAppendixBtn" class="btn-ghost" title="Open full technical documentation in a new tab">
+          Technical appendix
+        </button>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="tabs-nav" aria-label="Main sections">
+      <button class="tab-btn" data-tab-target="tab-results" id="tabButton-results">Results</button>
+      <button class="tab-btn" data-tab-target="tab-overview" id="tabButton-overview">Overview</button>
+      <button class="tab-btn" data-tab-target="tab-data" id="tabButton-data">Data</button>
+      <button class="tab-btn" data-tab-target="tab-config-treatments" id="tabButton-configTreatments">Treatments &amp; Control</button>
+      <button class="tab-btn" data-tab-target="tab-config-benefits" id="tabButton-configBenefits">Benefits setup</button>
+      <button class="tab-btn" data-tab-target="tab-config-costs" id="tabButton-configCosts">Costs setup</button>
+      <button class="tab-btn" data-tab-target="tab-figures" id="tabButton-figures">Figures &amp; plots</button>
+      <button class="tab-btn" data-tab-target="tab-simulation" id="tabButton-simulation">Simulation &amp; scenarios</button>
+      <button class="tab-btn" data-tab-target="tab-notes" id="tabButton-notes">Notes &amp; exports</button>
+      <button class="tab-btn" data-tab-target="tab-technical" id="tabButton-technical">Technical details</button>
     </nav>
-  </header>
 
-  <main class="wb-main">
-    <!-- INTRO -->
-    <section class="tab-panel" id="tab-intro">
-      <div class="wb-grid">
-        <section class="wb-card wb-card--span2">
-          <h2 class="wb-h2">What this tool does</h2>
-          <p class="wb-p">
-            This tool compares every treatment against a control baseline. It converts yield changes into revenue using a grain price,
-            applies discounted cashflows over a chosen time horizon, and shows present value benefits, present value costs, net present value,
-            benefit–cost ratio, and return on investment.
+    <!-- Main content -->
+    <main class="app-main">
+      <!-- RESULTS TAB (DEFAULT) -->
+      <section id="tab-results" class="tab-panel" aria-labelledby="tabButton-results">
+        <header class="panel-header">
+          <h2>Results – Comparison with control</h2>
+          <p>
+            This page shows how each treatment performs compared with the control. All values are per hectare and
+            use the full trial dataset. The control is the observed baseline from the trial, not a synthetic value.
           </p>
-          <p class="wb-p">
-            Import your trial dataset using upload or paste. The tool detects control and replicate baselines, computes plot-level deltas,
-            then calibrates treatments so the Results table always presents “Control versus all treatments”.
+        </header>
+
+        <section class="panel-section">
+          <div class="panel-section-header with-actions">
+            <div>
+              <h3>Snapshot – Which treatments perform better than the control?</h3>
+              <p>
+                The table below ranks treatments by net profit over time compared with the control.
+              </p>
+            </div>
+            <div class="actions-group">
+              <button type="button" id="filterAllBtn" class="chip is-on">Show all</button>
+              <button type="button" id="filterTopNPVBtn" class="chip">Top 5 by net profit</button>
+              <button type="button" id="filterTopBCRBtn" class="chip">Top 5 by benefit per dollar spent</button>
+              <button type="button" id="filterImprovedBtn" class="chip">Only improvements vs control</button>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table id="leaderboardTable">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Treatment</th>
+                  <th>Net profit over time (per ha)</th>
+                  <th>Difference vs control (per ha)</th>
+                  <th>Benefit per dollar spent</th>
+                  <th>Return on investment</th>
+                  <th>Included in comparison?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Filled by app.js -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-section-header with-actions">
+            <div>
+              <h3>Detailed comparison with the control</h3>
+              <p>
+                Every column is a treatment. Every row is an economic indicator. The control column is pinned on the
+                left for easy comparison.
+              </p>
+            </div>
+            <div class="actions-group">
+              <button type="button" id="exportComparisonCsvBtn" class="btn-secondary" title="Download this comparison table as a CSV file">
+                Download comparison (CSV)
+              </button>
+              <button type="button" id="exportLeaderboardCsvBtn" class="btn-secondary" title="Download the summary leaderboard as a CSV file">
+                Download leaderboard (CSV)
+              </button>
+              <button type="button" id="exportExcelBtn" class="btn-secondary" title="If Excel support is available, download an Excel workbook">
+                Download Excel workbook
+              </button>
+            </div>
+          </div>
+
+          <div class="results-comparison-wrapper">
+            <div class="results-comparison-scroll">
+              <table id="comparisonTable" class="comparison-table">
+                <thead>
+                  <!-- Filled by app.js -->
+                </thead>
+                <tbody>
+                  <!-- Filled by app.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <details class="helper-text">
+            <summary>How to read this table</summary>
+            <p>
+              <strong>Total benefits over time</strong> is the present value of all future benefits, including yield
+              effects, under the chosen assumptions. <strong>Total costs over time</strong> is the present value of all
+              costs, including additional cost components you enter on the cost configuration pages.
+            </p>
+            <p>
+              <strong>Net profit over time</strong> is benefits minus costs. <strong>Benefit per dollar spent</strong>
+              tells you how many dollars of benefit are generated per dollar of cost. <strong>Return on
+              investment</strong> is the net profit divided by total costs. All differences with the control are
+              treatment minus control.
+            </p>
+          </details>
+        </section>
+
+        <section class="panel-section">
+          <h3>Quick notes for this session</h3>
+          <p>
+            Use the box below for high-level remarks about the current scenario. These notes are saved in your browser
+            only.
           </p>
-          <div class="wb-callout">
-            <div class="wb-callout__title">Tip</div>
-            <div class="wb-callout__body">
-              Put <code>faba_beans_trial_clean_named.tsv</code> (and optionally <code>faba_beans_trial_data_dictionary_FULL.csv</code>)
-              next to <code>index.html</code> on GitHub Pages to load default data automatically.
+          <textarea id="resultsNotes" class="notes-area" rows="4" placeholder="Write key messages, recommended treatments, or caveats for this scenario."></textarea>
+        </section>
+      </section>
+
+      <!-- OVERVIEW TAB -->
+      <section id="tab-overview" class="tab-panel" aria-labelledby="tabButton-overview" hidden>
+        <header class="panel-header">
+          <h2>Overview – What this tool does</h2>
+          <p>
+            This decision aid summarises results from a faba beans field trial that tested a range of soil, amendment,
+            and nutrition treatments against a control. It brings together yield, cost, and treatment information to
+            help farmers, advisers, and policy users compare options in clear financial terms.
+          </p>
+        </header>
+
+        <section class="panel-section two-column">
+          <div>
+            <h3>The trial</h3>
+            <p>
+              The trial evaluates multiple soil and nutrient management strategies for faba beans, including deep
+              organic matter, gypsum, carbon-coated minerals, liquid nutrient products, and combinations of these
+              approaches. Treatments were compared with a control that reflects current practice on the trial site.
+            </p>
+            <p>
+              For each treatment and for each replicate plot, the dataset records plot dimensions, plant counts, grain
+              yield, grain quality measures, and detailed cost components such as amendment inputs, labour, machinery,
+              and transport.
+            </p>
+          </div>
+          <div>
+            <h3>What this tool calculates</h3>
+            <ul class="plain-list">
+              <li>Average yield and costs for each treatment based on all replicates in the trial.</li>
+              <li>Total benefits over time from higher yields valued at a user-defined price.</li>
+              <li>Total costs over time, including trial cost items and any additional cost components you enter.</li>
+              <li>Net profit, benefit per dollar spent, return on investment, and rankings.</li>
+              <li>Full comparison of every treatment with the control using the same underlying data.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="panel-section two-column">
+          <div>
+            <h3>How to use this tool</h3>
+            <ol class="plain-list numbered">
+              <li>Review the default trial data on the <strong>Data</strong> tab and confirm that it matches expectations.</li>
+              <li>Use the <strong>Treatments &amp; control</strong> tab to confirm which option is treated as the control and which are included in comparisons.</li>
+              <li>Specify or adjust key assumptions (prices, discount rates, persistence) and optional additional benefit items on the <strong>Benefits setup</strong> tab.</li>
+              <li>Enter or refine cost breakdowns on the <strong>Costs setup</strong> tab, including seed, labour, machinery, chemicals, and other cost components.</li>
+              <li>Return to the <strong>Results</strong> tab to review the control-centred comparison table and leaderboard.</li>
+              <li>Use the <strong>Simulation &amp; scenarios</strong> tab to test alternative price and discount rate settings and see how rankings change.</li>
+              <li>Capture key conclusions and caveats on the <strong>Notes &amp; exports</strong> tab.</li>
+            </ol>
+          </div>
+          <div>
+            <h3>Intended users</h3>
+            <p>This tool has been designed for three main groups:</p>
+            <ul class="plain-list">
+              <li><strong>Farmers</strong> who want a clear view of which treatments are likely to provide better returns than current practice.</li>
+              <li><strong>Advisers and agronomists</strong> who support decision making on soil and nutrient management strategies.</li>
+              <li><strong>Policy and extension staff</strong> who require transparent, trial-based evidence on the value of alternative practices.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Session notes</h3>
+          <p>
+            Use this space for general remarks about the project, including questions to discuss with collaborators or
+            observations about data quality, assumptions, or next steps.
+          </p>
+          <textarea id="overviewNotes" class="notes-area" rows="6" placeholder="Type broader project notes here. These are saved in your browser only."></textarea>
+        </section>
+      </section>
+
+      <!-- DATA TAB -->
+      <section id="tab-data" class="tab-panel" aria-labelledby="tabButton-data" hidden>
+        <header class="panel-header">
+          <h2>Data – Trial dataset and checks</h2>
+          <p>
+            The full faba beans trial dataset is loaded automatically on page load from
+            <code>faba_beans_trial_clean_named.tsv</code>. The same parsing and validation steps are used for uploaded
+            or pasted files.
+          </p>
+        </header>
+
+        <section class="panel-section two-column">
+          <div>
+            <h3>Current dataset</h3>
+            <div class="data-summary" id="dataSummary">
+              <p>Dataset not yet loaded.</p>
+            </div>
+            <h4>Column mapping used by the tool</h4>
+            <table id="columnMappingTable" class="small-table">
+              <thead>
+                <tr>
+                  <th>Purpose</th>
+                  <th>Column used</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Replicate</td>
+                  <td data-col-purpose="replicate">–</td>
+                </tr>
+                <tr>
+                  <td>Treatment name</td>
+                  <td data-col-purpose="treatment">–</td>
+                </tr>
+                <tr>
+                  <td>Control flag</td>
+                  <td data-col-purpose="control">–</td>
+                </tr>
+                <tr>
+                  <td>Yield</td>
+                  <td data-col-purpose="yield">–</td>
+                </tr>
+                <tr>
+                  <td>Variable cost</td>
+                  <td data-col-purpose="variableCost">–</td>
+                </tr>
+                <tr>
+                  <td>Capital cost</td>
+                  <td data-col-purpose="capitalCost">–</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <h3>Load or paste a different dataset</h3>
+            <p>
+              You can upload a new tab-separated (<code>.tsv</code>) or comma-separated (<code>.csv</code>) file, or
+              paste data directly. The file must include the same columns as the default dataset. No rows are removed
+              automatically.
+            </p>
+            <div class="form-group">
+              <label for="dataFileInput">Upload data file</label>
+              <input type="file" id="dataFileInput" accept=".tsv,.csv,.txt" />
+            </div>
+            <div class="form-group">
+              <label for="dataPasteArea">
+                Paste data (header row required)
+              </label>
+              <textarea id="dataPasteArea" rows="6" placeholder="Paste tab- or comma-separated data here. The first row must contain column names."></textarea>
+            </div>
+            <div class="actions-group">
+              <button type="button" id="loadFileBtn" class="btn-primary">Load uploaded file</button>
+              <button type="button" id="loadPasteBtn" class="btn-secondary">Load pasted data</button>
+              <button type="button" id="reloadDefaultBtn" class="btn-ghost">Reload default dataset</button>
             </div>
           </div>
         </section>
 
-        <section class="wb-card">
-          <h2 class="wb-h2">Quick actions</h2>
+        <section class="panel-section">
+          <h3>Data checks</h3>
+          <p>
+            Any issues detected when reading the dataset are listed below. These checks do not change the data; they
+            only highlight potential problems such as missing values or unusual entries.
+          </p>
+          <ul id="dataChecksList" class="checks-list">
+            <!-- Filled by app.js -->
+          </ul>
+        </section>
 
-          <div class="wb-actions">
-            <button class="btn" id="btnLoadDefault" type="button">Load default trial data</button>
-            <button class="btn btn-secondary" id="btnOpenAppendix" type="button">Open technical appendix</button>
-          </div>
-
-          <hr class="wb-hr" />
-
-          <h3 class="wb-h3">Scenario storage</h3>
-          <p class="wb-p small muted">Save and restore scenarios in this browser (settings, treatments, and notes).</p>
-
-          <div class="wb-form">
-            <label class="wb-label" for="scenarioName">Scenario name</label>
-            <input class="wb-input" id="scenarioName" type="text" placeholder="e.g., Base case (Jan 2026)" />
-          </div>
-
-          <div class="wb-actions">
-            <button class="btn" id="btnSaveScenario" type="button">Save scenario</button>
-          </div>
-
-          <div class="wb-form">
-            <label class="wb-label" for="scenarioSelect">Saved scenarios</label>
-            <select class="wb-select" id="scenarioSelect"></select>
-          </div>
-
-          <div class="wb-actions">
-            <button class="btn" id="btnLoadScenario" type="button">Load selected</button>
-            <button class="btn btn-danger" id="btnDeleteScenario" type="button">Delete selected</button>
+        <section class="panel-section">
+          <h3>Sample of loaded data</h3>
+          <div class="table-wrapper">
+            <table id="dataPreviewTable">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
           </div>
         </section>
-      </div>
-    </section>
+      </section>
 
-    <!-- IMPORT -->
-    <section class="tab-panel" id="tab-import">
-      <div class="wb-grid">
-        <section class="wb-card wb-card--span2">
-          <h2 class="wb-h2">Data import</h2>
-          <p class="wb-p">
-            Upload TSV, CSV, or Excel. You can also paste tabular content directly. If your paste includes a data dictionary section followed by the data section,
-            the tool will split and parse both.
+      <!-- CONFIG: TREATMENTS & CONTROL -->
+      <section id="tab-config-treatments" class="tab-panel" aria-labelledby="tabButton-configTreatments" hidden>
+        <header class="panel-header">
+          <h2>Treatments &amp; control</h2>
+          <p>
+            Use this page to confirm which treatment is treated as the control and which treatments are included in
+            comparisons and plots. By default, the control is detected from the <code>is_control</code> column in the
+            dataset.
           </p>
+        </header>
 
-          <div class="wb-split">
+        <section class="panel-section">
+          <h3>Control and inclusion settings</h3>
+          <p>
+            If needed, you can change the treatment marked as the control. Results will update immediately. Only one
+            treatment can be the control at any time.
+          </p>
+          <div class="table-wrapper">
+            <table id="treatmentsConfigTable">
+              <thead>
+                <tr>
+                  <th>Treatment</th>
+                  <th>Current control?</th>
+                  <th>Set as control</th>
+                  <th>Include in comparisons?</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Filled by app.js -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Global economic assumptions</h3>
+          <div class="two-column">
             <div>
-              <h3 class="wb-h3">Upload</h3>
-              <input id="fileUpload" type="file" class="wb-file" accept=".tsv,.csv,.txt,.xlsx,.xls" />
-              <div class="wb-actions">
-                <button class="btn" id="btnStageUpload" type="button">Stage upload</button>
-                <button class="btn btn-primary" id="btnCommitStaged" type="button">Commit staged dataset</button>
+              <div class="form-group">
+                <label for="grainPriceInput">
+                  Grain price per tonne
+                  <span class="info-icon" title="Price received per tonne of faba beans. Used to value yield differences.">i</span>
+                </label>
+                <input type="number" id="grainPriceInput" step="1" min="0" />
+              </div>
+              <div class="form-group">
+                <label for="discountRateInput">
+                  Discount rate (percent per year)
+                  <span class="info-icon" title="Annual rate used to convert future costs and benefits into present values.">i</span>
+                </label>
+                <input type="number" id="discountRateInput" step="0.1" min="0" max="50" />
               </div>
             </div>
-
             <div>
-              <h3 class="wb-h3">Paste</h3>
-              <textarea id="pasteData" class="wb-textarea" rows="10" placeholder="Paste TSV or CSV content here."></textarea>
-              <div class="wb-actions">
-                <button class="btn" id="btnStagePaste" type="button">Stage paste</button>
-                <button class="btn btn-primary" id="btnCommitStaged" type="button">Commit staged dataset</button>
+              <div class="form-group">
+                <label for="horizonYearsInput">
+                  Time horizon (years)
+                  <span class="info-icon" title="Number of years over which benefits and any repeating costs are counted.">i</span>
+                </label>
+                <input type="number" id="horizonYearsInput" step="1" min="1" max="50" />
+              </div>
+              <div class="form-group">
+                <label for="persistenceInput">
+                  Persistence of yield effect (0–1)
+                  <span class="info-icon" title="How much of the initial yield effect remains each year. 1 means the full effect continues; 0.5 means it halves each year.">i</span>
+                </label>
+                <input type="number" id="persistenceInput" step="0.05" min="0" max="1" />
               </div>
             </div>
           </div>
-
-          <hr class="wb-hr" />
-
-          <h3 class="wb-h3">Import status</h3>
-          <div class="wb-pill wb-pill--wide">
-            <span class="wb-pill__label">Summary</span>
-            <span class="wb-pill__value" id="importSummary"></span>
-          </div>
-          <div class="wb-pill wb-pill--wide">
-            <span class="wb-pill__label">Details</span>
-            <span class="wb-pill__value" id="importStatus"></span>
-          </div>
-
-          <h3 class="wb-h3">Data checks</h3>
-          <div id="dataChecks"></div>
         </section>
 
-        <section class="wb-card">
-          <h2 class="wb-h2">Exports</h2>
-          <p class="wb-p small muted">Exports reflect the committed dataset and the latest computed results.</p>
+        <section class="panel-section">
+          <h3>Per-treatment cost recurrence share</h3>
+          <p>
+            Some cost items may repeat each year (for example, annual applications), while others are largely one-off.
+            The share below determines what portion of the average cost repeats in future years.
+          </p>
+          <div class="table-wrapper">
+            <table id="costRecurrenceTable" class="small-table">
+              <thead>
+                <tr>
+                  <th>Treatment</th>
+                  <th>Share of cost that repeats each year (0–1)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Filled by app.js -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
 
-          <div class="wb-actions">
-            <button class="btn" id="btnExportCleaned" type="button">Download cleaned dataset (TSV)</button>
-            <button class="btn" id="btnExportSummary" type="button">Download treatment summary (CSV)</button>
-            <button class="btn" id="btnExportWorkbook" type="button">Download workbook (XLSX)</button>
+      <!-- CONFIG: BENEFITS -->
+      <section id="tab-config-benefits" class="tab-panel" aria-labelledby="tabButton-configBenefits" hidden>
+        <header class="panel-header">
+          <h2>Benefits setup</h2>
+          <p>
+            This page defines how benefits are measured. By default, benefits come from grain yield differences valued
+            at the chosen grain price. You can add additional benefit items if relevant.
+          </p>
+        </header>
+
+        <section class="panel-section">
+          <h3>Yield-based benefits</h3>
+          <p>
+            The tool uses average grain yield (tonnes per hectare) from the trial for each treatment and values it using
+            the grain price set on the <strong>Treatments &amp; control</strong> tab. Yield differences are applied over
+            the chosen time horizon with the persistence factor.
+          </p>
+          <div class="table-wrapper">
+            <table id="yieldSummaryTable" class="small-table">
+              <thead>
+                <tr>
+                  <th>Treatment</th>
+                  <th>Average yield (t/ha)</th>
+                  <th>Difference vs control (t/ha)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Filled by app.js -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Additional benefit components</h3>
+          <p>
+            If a treatment has other benefits per hectare each year (for example, better soil structure or reduced
+            disease risk valued in monetary terms), enter them here. These values are added to the yield-based benefits
+            before discounting.
+          </p>
+          <div class="table-wrapper">
+            <table id="benefitConfigTable">
+              <thead>
+                <tr>
+                  <th>Treatment</th>
+                  <th>Extra annual benefit per ha</th>
+                  <th>One-off benefit at year 0 per ha</th>
+                  <th>Total extra benefit (present value)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Filled by app.js -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Notes about benefits</h3>
+          <textarea id="benefitsNotes" class="notes-area" rows="4" placeholder="Describe any assumed non-yield benefits or how they were valued."></textarea>
+        </section>
+      </section>
+
+      <!-- CONFIG: COSTS -->
+      <section id="tab-config-costs" class="tab-panel" aria-labelledby="tabButton-configCosts" hidden>
+        <header class="panel-header">
+          <h2>Costs setup</h2>
+          <p>
+            This page decomposes costs into components. The default dataset includes a combined total cost per hectare.
+            Here you can break out additional items, or refine cost assumptions for each treatment.
+          </p>
+        </header>
+
+        <section class="panel-section">
+          <h3>Baseline cost summary from dataset</h3>
+          <p>
+            Baseline costs use the total cost recorded in the trial dataset. These are treated as observed per-hectare
+            costs for each treatment.
+          </p>
+          <div class="table-wrapper">
+            <table id="baselineCostTable" class="small-table">
+              <thead>
+                <tr>
+                  <th>Treatment</th>
+                  <th>Average total cost per ha (trial)</th>
+                  <th>Difference vs control (per ha)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Filled by app.js -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Additional cost components by treatment</h3>
+          <p>
+            Enter any extra per-hectare costs for each treatment in the categories below. The total additional cost per
+            treatment is summed automatically and included in the economic calculations.
+          </p>
+          <div class="table-wrapper">
+            <table id="costConfigTable">
+              <thead>
+                <tr>
+                  <th>Treatment</th>
+                  <th>Seed</th>
+                  <th>Labour</th>
+                  <th>Machinery</th>
+                  <th>Chemicals</th>
+                  <th>Other</th>
+                  <th>Total extra cost per ha</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Filled by app.js -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Notes about costs</h3>
+          <textarea id="costsNotes" class="notes-area" rows="4" placeholder="Describe any additional costs, data sources, or assumptions here."></textarea>
+        </section>
+      </section>
+
+      <!-- FIGURES & PLOTS -->
+      <section id="tab-figures" class="tab-panel" aria-labelledby="tabButton-figures" hidden>
+        <header class="panel-header">
+          <h2>Figures &amp; plots</h2>
+          <p>
+            These charts use the full dataset and your current configuration to visualise key results. They are intended
+            to support discussion and decision making, not as decoration.
+          </p>
+        </header>
+
+        <section class="panel-section">
+          <h3>Net profit compared with control</h3>
+          <p>
+            This chart shows the difference in net profit over time (present value) between each treatment and the
+            control. Positive values indicate treatments that improve net profit relative to the control.
+          </p>
+          <div class="chart-container">
+            <canvas id="npvVsControlChart" aria-label="Net profit compared with control chart"></canvas>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Costs and benefits by treatment</h3>
+          <p>
+            Each pair of bars shows the total benefits and total costs over time (present value) for a treatment,
+            including any additional items you entered on the configuration pages.
+          </p>
+          <div class="chart-container">
+            <canvas id="costBenefitChart" aria-label="Costs and benefits chart"></canvas>
+          </div>
+        </section>
+      </section>
+
+      <!-- SIMULATION & SCENARIOS -->
+      <section id="tab-simulation" class="tab-panel" aria-labelledby="tabButton-simulation" hidden>
+        <header class="panel-header">
+          <h2>Simulation &amp; scenarios</h2>
+          <p>
+            Use this page to test how results change under different assumptions about grain price, discount rate, and
+            persistence. Scenarios do not change the underlying data; they only change the way benefits and costs are
+            aggregated over time.
+          </p>
+        </header>
+
+        <section class="panel-section">
+          <div class="panel-section-header with-actions">
+            <div>
+              <h3>Scenario list</h3>
+              <p>
+                The base scenario mirrors the main configuration. Additional scenarios can be added and edited here.
+              </p>
+            </div>
+            <div class="actions-group">
+              <button type="button" id="addScenarioBtn" class="btn-primary">Add scenario</button>
+              <button type="button" id="resetScenariosBtn" class="btn-ghost">Reset scenarios</button>
+            </div>
           </div>
 
-          <hr class="wb-hr" />
+          <div class="table-wrapper">
+            <table id="scenarioTable">
+              <thead>
+                <tr>
+                  <th>Scenario name</th>
+                  <th>Grain price per tonne</th>
+                  <th>Discount rate (%)</th>
+                  <th>Time horizon (years)</th>
+                  <th>Persistence (0–1)</th>
+                  <th>Best treatment (by net profit)</th>
+                  <th>Net profit gain vs control (per ha)</th>
+                  <th>Delete</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Filled by app.js -->
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-          <h3 class="wb-h3">Note</h3>
-          <p class="wb-p small muted">
-            Workbook export and Excel upload require the XLSX library. If it does not load, use TSV/CSV upload.
+        <section class="panel-section">
+          <h3>Scenario comparison plot</h3>
+          <p>
+            This chart shows, for each scenario, the net profit gain over time for the best-performing treatment
+            relative to the control.
+          </p>
+          <div class="chart-container">
+            <canvas id="scenarioChart" aria-label="Scenario comparison chart"></canvas>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Notes for scenario analysis</h3>
+          <textarea id="simulationNotes" class="notes-area" rows="4" placeholder="Record assumptions and interpretation of scenario results here."></textarea>
+        </section>
+      </section>
+
+      <!-- NOTES & EXPORTS -->
+      <section id="tab-notes" class="tab-panel" aria-labelledby="tabButton-notes" hidden>
+        <header class="panel-header">
+          <h2>Notes &amp; exports</h2>
+          <p>
+            This page collects notes from across the tool and provides export options for documentation and reporting.
+            Notes are stored in your browser and are not sent anywhere.
+          </p>
+        </header>
+
+        <section class="panel-section two-column">
+          <div>
+            <h3>Consolidated notes (read-only)</h3>
+            <p>
+              This panel summarises the notes you have written on other pages. You can copy them directly into a report
+              or briefing document.
+            </p>
+            <textarea id="consolidatedNotes" class="notes-area" rows="14" readonly></textarea>
+          </div>
+          <div>
+            <h3>Working notes for this export</h3>
+            <p>
+              Use this space to shape key messages for farmers, advisers, or policy audiences. It is often helpful to
+              focus on: which treatments are clearly better or worse than the control, how sensitive results are to
+              prices and discount rates, and any implementation issues.
+            </p>
+            <textarea id="notesWorkingArea" class="notes-area" rows="14" placeholder="Draft your summary for the current configuration here."></textarea>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Data and results exports</h3>
+          <p>
+            Use these buttons to export the cleaned dataset and key results. Files are generated in your browser.
+          </p>
+          <div class="actions-group">
+            <button type="button" id="exportCleanTsvBtn" class="btn-secondary">Download cleaned dataset (TSV)</button>
+            <button type="button" id="exportTreatmentSummaryCsvBtn" class="btn-secondary">Download treatment summary (CSV)</button>
+            <button type="button" id="exportSensitivityCsvBtn" class="btn-secondary">Download scenario results (CSV)</button>
+          </div>
+        </section>
+      </section>
+
+      <!-- TECHNICAL DETAILS TAB -->
+      <section id="tab-technical" class="tab-panel" aria-labelledby="tabButton-technical" hidden>
+        <header class="panel-header">
+          <h2>Technical details</h2>
+          <p>
+            The full technical appendix documents the methods used to transform trial data into economic indicators.
+            This includes treatment aggregation, present value calculations, and handling of missing values.
+          </p>
+        </header>
+
+        <section class="panel-section">
+          <p>
+            To see the detailed documentation, including all formulas and definitions, open the technical appendix in a
+            new browser tab.
+          </p>
+          <button type="button" id="openTechnicalAppendixBtn2" class="btn-primary">
+            Open technical appendix in new tab
+          </button>
+          <p class="helper-text">
+            The implementation in this tool is designed to match the methods described in the technical appendix. If
+            you notice any discrepancies, please record them on the Notes page.
           </p>
         </section>
-      </div>
-    </section>
+      </section>
+    </main>
+  </div>
 
-    <!-- CONFIG -->
-    <section class="tab-panel" id="tab-config">
-      <div class="wb-grid">
-        <section class="wb-card wb-card--span2">
-          <h2 class="wb-h2">Configuration</h2>
-
-          <div class="wb-grid2">
-            <div class="wb-form">
-              <label class="wb-label" for="grainPrice">Grain price (per tonne)</label>
-              <input class="wb-input" id="grainPrice" type="number" step="1" placeholder="e.g., 450" />
-              <div class="small muted">Used to value yield deltas in t/ha.</div>
-            </div>
-
-            <div class="wb-form">
-              <label class="wb-label" for="yearsHorizon">Time horizon (years)</label>
-              <input class="wb-input" id="yearsHorizon" type="number" step="1" min="1" value="10" />
-            </div>
-
-            <div class="wb-form">
-              <label class="wb-label" for="discountRateBase">Discount rate (base, %)</label>
-              <input class="wb-input" id="discountRateBase" type="number" step="0.1" value="7" />
-            </div>
-
-            <div class="wb-form">
-              <label class="wb-label" for="persistenceYears">Yield persistence (years)</label>
-              <input class="wb-input" id="persistenceYears" type="number" step="1" min="0" value="5" />
-              <div class="small muted">Number of years yield lift is applied after application.</div>
-            </div>
-
-            <div class="wb-form">
-              <label class="wb-label" for="adoptionMultiplier">Adoption multiplier (0 to 1)</label>
-              <input class="wb-input" id="adoptionMultiplier" type="number" step="0.01" min="0" max="1" value="1" />
-            </div>
-
-            <div class="wb-form">
-              <label class="wb-label" for="riskMultiplier">Risk multiplier (0 to 1)</label>
-              <input class="wb-input" id="riskMultiplier" type="number" step="0.01" min="0" max="1" value="0.15" />
-              <div class="small muted">Reduces benefits by this proportion.</div>
-            </div>
-          </div>
-
-          <hr class="wb-hr" />
-
-          <h3 class="wb-h3">Outputs</h3>
-          <div id="outputsList"></div>
-
-          <hr class="wb-hr" />
-
-          <h3 class="wb-h3">Treatments</h3>
-          <p class="wb-p small muted">Treatments are calibrated from the committed dataset. You can adjust incremental inputs here.</p>
-          <div id="treatmentsList"></div>
-        </section>
-
-        <section class="wb-card">
-          <h2 class="wb-h2">Sensitivity settings</h2>
-          <p class="wb-p small muted">Enter comma-separated lists. Click “Update sensitivity settings”.</p>
-
-          <div class="wb-form">
-            <label class="wb-label" for="sensPrice">Grain price grid</label>
-            <input class="wb-input" id="sensPrice" type="text" />
-          </div>
-
-          <div class="wb-form">
-            <label class="wb-label" for="sensDiscount">Discount rate grid (%)</label>
-            <input class="wb-input" id="sensDiscount" type="text" />
-          </div>
-
-          <div class="wb-form">
-            <label class="wb-label" for="sensPersistence">Persistence grid (years)</label>
-            <input class="wb-input" id="sensPersistence" type="text" />
-          </div>
-
-          <div class="wb-form">
-            <label class="wb-label" for="sensRecurrence">Recurrence grid (years, 0 means once)</label>
-            <input class="wb-input" id="sensRecurrence" type="text" />
-          </div>
-
-          <div class="wb-actions">
-            <button class="btn" id="btnUpdateSensitivitySettings" type="button">Update sensitivity settings</button>
-          </div>
-        </section>
-      </div>
-    </section>
-
-    <!-- RESULTS -->
-    <section class="tab-panel active" id="tab-results">
-      <div class="wb-grid">
-        <section class="wb-card wb-card--span2">
-          <div class="wb-results-head">
-            <h2 class="wb-h2">Results</h2>
-            <div class="wb-pill wb-pill--wide">
-              <span class="wb-pill__label">Base case</span>
-              <span class="wb-pill__value" id="baseCaseBadge"></span>
-            </div>
-          </div>
-
-          <div class="wb-actions">
-            <button class="btn" id="btnFilterAll" type="button">Show all</button>
-            <button class="btn" id="btnFilterTopNpv" type="button">Top 5 by NPV</button>
-            <button class="btn" id="btnFilterTopBcr" type="button">Top 5 by BCR</button>
-            <button class="btn" id="btnFilterImprove" type="button">Show only improvements vs control</button>
-          </div>
-
-          <h3 class="wb-h3">Leaderboard</h3>
-          <div id="resultsLeaderboard"></div>
-
-          <h3 class="wb-h3">Comparison to control</h3>
-          <div id="comparisonToControl"></div>
-
-          <h3 class="wb-h3">What this means</h3>
-          <pre class="wb-narrative" id="resultsNarrative"></pre>
-        </section>
-
-        <section class="wb-card">
-          <h2 class="wb-h2">Plots</h2>
-
-          <h3 class="wb-h3">NPV bar chart</h3>
-          <div class="wb-chart">
-            <canvas id="chartNpv" width="800" height="360"></canvas>
-          </div>
-
-          <hr class="wb-hr" />
-
-          <h3 class="wb-h3">Cashflow line</h3>
-          <div class="wb-form">
-            <label class="wb-label" for="cashflowTreatmentSelect">Treatment</label>
-            <select class="wb-select" id="cashflowTreatmentSelect"></select>
-          </div>
-          <div class="wb-chart">
-            <canvas id="chartCashflow" width="800" height="360"></canvas>
-          </div>
-
-          <hr class="wb-hr" />
-
-          <div class="wb-actions">
-            <button class="btn btn-secondary" id="btnOpenAppendix" type="button">Open technical appendix</button>
-          </div>
-        </section>
-      </div>
-    </section>
-
-    <!-- SENSITIVITY -->
-    <section class="tab-panel" id="tab-sensitivity">
-      <div class="wb-grid">
-        <section class="wb-card wb-card--span2">
-          <h2 class="wb-h2">Sensitivity</h2>
-          <p class="wb-p">
-            Sensitivity runs the CBA engine across a grid of grain prices, discount rates, persistence years, and recurrence years.
-            Use exports for the full grid. The summary below focuses on stability rather than a single point estimate.
-          </p>
-
-          <div class="wb-actions">
-            <button class="btn btn-primary" id="btnRunSensitivity" type="button">Run sensitivity grid</button>
-            <button class="btn" id="btnExportSensitivity" type="button">Download sensitivity grid (CSV)</button>
-          </div>
-
-          <h3 class="wb-h3">Sensitivity summary</h3>
-          <div id="sensitivitySummary"></div>
-        </section>
-
-        <section class="wb-card">
-          <h2 class="wb-h2">Notes</h2>
-          <p class="wb-p small muted">
-            The recurrence setting determines how often incremental per-hectare application costs are repeated.
-            A value of 0 means a one-off application at year 0. Positive values repeat at that interval.
-          </p>
-          <p class="wb-p small muted">
-            If your trial costs include multiple columns, the tool groups them into labour, services, and materials for treatment inputs.
-            This grouping is based on column names and can be refined in your dataset naming.
-          </p>
-        </section>
-      </div>
-    </section>
-
-    <!-- AI -->
-    <section class="tab-panel" id="tab-ai">
-      <div class="wb-grid">
-        <section class="wb-card wb-card--span2">
-          <h2 class="wb-h2">AI briefing</h2>
-          <p class="wb-p">
-            Copy the prompt and paste it into your preferred writing assistant. The prompt includes the computed results JSON at the end.
-          </p>
-
-          <div class="wb-actions">
-            <button class="btn btn-primary" id="btnCopyAiBrief" type="button">Copy briefing prompt</button>
-          </div>
-
-          <textarea id="aiBriefingText" class="wb-textarea" rows="18"></textarea>
-        </section>
-
-        <section class="wb-card">
-          <h2 class="wb-h2">Results JSON</h2>
-          <p class="wb-p small muted">Copy-ready JSON for reporting or downstream analysis.</p>
-
-          <div class="wb-actions">
-            <button class="btn" id="btnCopyResultsJson" type="button">Copy results JSON</button>
-          </div>
-
-          <textarea id="resultsJson" class="wb-textarea" rows="18"></textarea>
-        </section>
-      </div>
-    </section>
-
-    <!-- APPENDIX -->
-    <section class="tab-panel" id="tab-appendix">
-      <div class="wb-grid">
-        <section class="wb-card wb-card--span2">
-          <h2 class="wb-h2">Technical appendix</h2>
-          <p class="wb-p">
-            Opens a separate appendix page using the currently committed dataset, data checks, calibrated treatments, base case results, and sensitivity grid (if run).
-            The appendix payload is stored in browser storage just before the new tab opens.
-          </p>
-
-          <div class="wb-actions">
-            <button class="btn btn-primary" id="btnOpenAppendix" type="button">Open technical appendix</button>
-          </div>
-
-          <hr class="wb-hr" />
-
-          <h3 class="wb-h3">Data checks</h3>
-          <div id="dataChecks"></div>
-        </section>
-
-        <section class="wb-card">
-          <h2 class="wb-h2">Appendix file</h2>
-          <p class="wb-p small muted">
-            Ensure <code>technical-appendix.html</code> exists in the same folder as this page.
-            It should read the payload from <code>localStorage</code> key <code>farming_cba_appendix_payload_v2</code>.
-          </p>
-        </section>
-      </div>
-    </section>
-  </main>
-
-  <footer class="wb-footer">
-    <div class="wb-footer__inner">
-      <div class="small muted">Newcastle Business School · Farming CBA Decision Tool 2</div>
-    </div>
-  </footer>
-
-  <!-- Toast root is created by app.js if missing -->
+  <script src="app.js" defer></script>
 </body>
 </html>
