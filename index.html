@@ -1,134 +1,486 @@
 <!-- index.html -->
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Farming CBA Decision Tool 2</title>
-  <link rel="stylesheet" href="styles.css" />
-  <!-- SheetJS (XLSX) for Excel import/export -->
-  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script defer src="app.js"></script>
-</head>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Farming CBA Decision Tool 2</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
 
-<body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">F</div>
-      <div class="brand-text">
-        <div class="title">Farming CBA Decision Tool 2</div>
-        <div class="subtitle">Control vs treatments • auditable CBA • Excel-first</div>
-      </div>
-    </div>
-
-    <div class="top-actions">
-      <button class="btn ghost" data-tab-target="import">Upload / Export</button>
-      <button class="btn ghost" data-tab-target="audit">Audit</button>
-    </div>
-  </header>
-
-  <nav class="tabs" id="mainTabs" role="tablist" aria-label="Main tabs">
-    <button class="tab active" role="tab" aria-selected="true" data-tab-target="results">Results</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab-target="simulations">Simulations</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab-target="treatments">Treatments</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab-target="outputs">Outputs</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab-target="project">Project</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab-target="settings">Settings</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab-target="ai">AI</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab-target="import">Upload / Export</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab-target="audit">Audit</button>
-  </nav>
-
-  <main class="container">
-    <!-- RESULTS -->
-    <section class="tab-panel active" data-tab-panel="results">
-      <div class="results-header">
-        <div>
-          <h2>Comparison to Control</h2>
-          <div class="small muted">Rows are indicators. Columns are Control + each treatment, with a Δ vs Control column for each treatment (absolute and % where meaningful).</div>
-        </div>
-        <div class="results-actions">
-          <button class="btn" id="filterTopNpv">Top 5 by NPV</button>
-          <button class="btn" id="filterTopBcr">Top 5 by BCR</button>
-          <button class="btn" id="filterImprove">Only improvements vs control</button>
-          <button class="btn ghost" id="filterAll">Show all</button>
-          <span class="sep"></span>
-          <button class="btn" id="resultsExportExcel">Export Excel</button>
-          <button class="btn ghost" id="resultsPrint">Print / PDF</button>
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">F</div>
+        <div class="brand-text">
+          <div class="brand-title">Farming CBA Decision Tool 2</div>
+          <div class="brand-subtitle">Control vs treatments comparison · Excel-first · Auditable calculations</div>
         </div>
       </div>
 
-      <div id="resultsMeta"></div>
+      <div class="header-meta">
+        <div class="badge" id="toolVersionBadge">v—</div>
+        <button class="btn" id="resetToDefault" type="button">Reset to default dataset</button>
+        <button class="btn" id="restoreLastUpload" type="button">Restore last successful upload</button>
+      </div>
+    </header>
 
-      <div id="resultsLeaderboard" class="mb"></div>
+    <nav class="tabs" role="tablist" aria-label="Tool tabs">
+      <button class="tab active" role="tab" aria-selected="true" data-tab="home">Home</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="data">Data (Excel upload)</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="settings">Settings</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="treatments">Treatments</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="results">Results</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="simulations">Simulations</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="ai">AI / Copilot</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="exports">Exports</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="audit">Audit log</button>
+    </nav>
 
-      <div class="card">
-        <div class="table-region">
-          <div id="comparisonTableWrap" class="comparison-wrap" role="region" aria-label="Comparison to control table">
-            <table id="comparisonTable" class="comparison"></table>
+    <main id="main" class="main">
+      <!-- HOME -->
+      <section class="tab-panel active" id="tab-home" data-tab-panel="home" role="tabpanel" aria-hidden="false">
+        <div class="grid-2">
+          <div class="card">
+            <h2>Start here</h2>
+            <p class="muted">
+              This tool treats the uploaded Excel workbook as the contract. An upload must either fully succeed or fail
+              with a clear error list (no silent partial imports).
+            </p>
+            <ol class="muted">
+              <li>Go to <b>Data (Excel upload)</b> and upload your workbook.</li>
+              <li>Review the <b>mapping and validation report</b>, then apply the import.</li>
+              <li>Check <b>Results</b> for the “Comparison to Control” table and leaderboard.</li>
+              <li>Use <b>Simulations</b> for break-even and one-way sensitivity (non-prescriptive decision support).</li>
+              <li>Use <b>Exports</b> to create Excel / printable PDF / AI brief pack.</li>
+            </ol>
+            <div class="row">
+              <button class="btn primary" type="button" data-tab-jump="data">Upload Excel now</button>
+              <button class="btn" type="button" data-tab-jump="results">Go to Results</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Plain-language indicator meanings</h2>
+            <p class="muted">
+              PV Benefits and PV Costs are the discounted values over the chosen horizon. NPV is PV(Benefits) −
+              PV(Costs). BCR is PV(Benefits) ÷ PV(Costs). ROI is NPV ÷ PV(Costs).
+            </p>
+            <p class="muted">
+              The Results tab shows every treatment alongside the Control (baseline) and then shows the Δ vs Control so
+              you can see whether a treatment wins by lifting benefits, cutting costs, or both.
+            </p>
+            <div class="callout">
+              <div><b>Reliability target:</b></div>
+              <div class="muted">Uploads either fully succeed, or fail with an actionable error list.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DATA -->
+      <section class="tab-panel" id="tab-data" data-tab-panel="data" role="tabpanel" aria-hidden="true" hidden>
+        <div class="card">
+          <h2>Excel upload (OpenXML .xlsx)</h2>
+          <div class="row">
+            <button class="btn primary" id="btnChooseExcel" type="button">Choose Excel file</button>
+            <button class="btn" id="btnDownloadTemplate" type="button">Download template (schema-based)</button>
+          </div>
+          <div class="muted small">
+            Supported: .xlsx (recommended). This tool uses SheetJS (XLSX) in-browser.
           </div>
         </div>
 
-        <div class="small muted mt">
-          Notes: Control is pinned and labelled “Control (baseline)”. Δ cells show absolute difference and percent where meaningful. Use “Details” to see formulas and reconciliation checks.
+        <div class="grid-2">
+          <div class="card">
+            <h3>Mapping & validation report</h3>
+            <div id="validationSummary" class="muted small">No file parsed yet.</div>
+            <div class="table-wrap">
+              <table class="table" id="mappingTable" aria-label="Excel mapping table">
+                <thead>
+                  <tr>
+                    <th>Column in Excel</th>
+                    <th>Detected type</th>
+                    <th>Parse success</th>
+                    <th>Override role</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <div class="row">
+              <button class="btn primary" id="btnApplyImport" type="button" disabled>Apply import</button>
+              <button class="btn" id="btnDiscardParsed" type="button" disabled>Discard parsed file</button>
+            </div>
+
+            <div id="validationErrors" class="errors" aria-live="polite"></div>
+          </div>
+
+          <div class="card">
+            <h3>Calibration summary</h3>
+            <div id="calibrationSummary" class="kv muted">
+              <div><span class="k">Rows read</span><span class="v">—</span></div>
+              <div><span class="k">Treatments</span><span class="v">—</span></div>
+              <div><span class="k">Replications aggregated</span><span class="v">—</span></div>
+              <div><span class="k">Control detected</span><span class="v">—</span></div>
+              <div><span class="k">Sheet used</span><span class="v">—</span></div>
+            </div>
+
+            <div class="callout">
+              <div><b>Aggregation rule</b></div>
+              <div class="muted small">
+                If multiple rows share the same treatment name, the tool aggregates by treatment using means for numeric
+                columns, and records replicate counts for audit.
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- SIMULATIONS -->
-    <section class="tab-panel" data-tab-panel="simulations" hidden>
-      <div id="oneWayControls"></div>
-      <div id="scenarioSets" class="mt"></div>
-    </section>
+      <!-- SETTINGS -->
+      <section class="tab-panel" id="tab-settings" data-tab-panel="settings" role="tabpanel" aria-hidden="true" hidden>
+        <div class="grid-2">
+          <div class="card">
+            <h2>Scenario settings</h2>
+            <div class="row-3">
+              <div class="field">
+                <label for="farmArea">Farm area (ha)</label>
+                <input id="farmArea" type="number" min="0" step="0.01" />
+              </div>
+              <div class="field">
+                <label for="years">Time horizon (years)</label>
+                <input id="years" type="number" min="1" step="1" />
+              </div>
+              <div class="field">
+                <label for="discRate">Discount rate (% per year)</label>
+                <input id="discRate" type="number" step="0.01" />
+              </div>
+            </div>
 
-    <!-- TREATMENTS -->
-    <section class="tab-panel" data-tab-panel="treatments" hidden>
-      <h2>Treatments</h2>
-      <div class="small muted">Costs and output deltas are incremental versus Control. Capital cost is year 0. Operating components are per hectare.</div>
-      <div id="treatmentsList" class="mt"></div>
-    </section>
+            <div class="row-3">
+              <div class="field">
+                <label for="adoption">Adoption / implementation rate (0–1)</label>
+                <input id="adoption" type="number" min="0" max="1" step="0.01" />
+              </div>
+              <div class="field">
+                <label for="risk">Risk factor (0–1)</label>
+                <input id="risk" type="number" min="0" max="1" step="0.01" />
+              </div>
+              <div class="field">
+                <label for="tol">Reconciliation tolerance</label>
+                <select id="tol">
+                  <option value="0.01">±$0.01 (strict)</option>
+                  <option value="1">±$1</option>
+                  <option value="10" selected>±$10</option>
+                  <option value="100">±$100</option>
+                </select>
+              </div>
+            </div>
 
-    <!-- OUTPUTS -->
-    <section class="tab-panel" data-tab-panel="outputs" hidden>
-      <div id="outputsList"></div>
-    </section>
+            <div class="callout">
+              <div><b>Note</b></div>
+              <div class="muted small">
+                Adoption and risk apply multiplicatively to annual benefits (and can be explored in Simulations).
+              </div>
+            </div>
+          </div>
 
-    <!-- PROJECT -->
-    <section class="tab-panel" data-tab-panel="project" hidden>
-      <div id="projectBox"></div>
-    </section>
+          <div class="card">
+            <h2>Outputs (benefit drivers)</h2>
+            <div class="muted small">
+              Outputs are per-hectare levels by treatment (for example yield t/ha), valued using the unit value ($ per
+              unit). For grain yield, unit value is typically the grain price ($/t).
+            </div>
+            <div class="table-wrap">
+              <table class="table" id="outputsTable" aria-label="Outputs table">
+                <thead>
+                  <tr>
+                    <th>Output</th>
+                    <th>Unit</th>
+                    <th>Unit value ($/unit)</th>
+                    <th>Source</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="row">
+              <button class="btn" id="btnAddOutput" type="button">Add output</button>
+              <button class="btn" id="btnRecalc" type="button">Recalculate</button>
+            </div>
+          </div>
+        </div>
+      </section>
 
-    <!-- SETTINGS -->
-    <section class="tab-panel" data-tab-panel="settings" hidden>
-      <div id="settingsBox"></div>
-    </section>
+      <!-- TREATMENTS -->
+      <section class="tab-panel" id="tab-treatments" data-tab-panel="treatments" role="tabpanel" aria-hidden="true" hidden>
+        <div class="card">
+          <div class="row between">
+            <h2>Treatments (cost build-up + outputs)</h2>
+            <button class="btn" id="btnAddTreatment" type="button">Add treatment</button>
+          </div>
+          <p class="muted small">
+            Costs are built from editable line items ($/ha) plus a capital cost ($, year 0). Totals are computed and
+            drive all downstream PV/ROI calculations (no duplicated totals).
+          </p>
+        </div>
 
-    <!-- AI -->
-    <section class="tab-panel" data-tab-panel="ai" hidden>
-      <div id="aiBox"></div>
-    </section>
+        <div id="treatmentsList"></div>
+      </section>
 
-    <!-- IMPORT / EXPORT -->
-    <section class="tab-panel" data-tab-panel="import" hidden>
-      <div id="importBox"></div>
-    </section>
+      <!-- RESULTS -->
+      <section class="tab-panel" id="tab-results" data-tab-panel="results" role="tabpanel" aria-hidden="true" hidden>
+        <div class="card">
+          <div class="row between">
+            <h2>Results</h2>
+            <div class="row">
+              <button class="btn" id="filterAll" type="button">Show all</button>
+              <button class="btn" id="filterTopNpv" type="button">Top 5 by NPV</button>
+              <button class="btn" id="filterTopBcr" type="button">Top 5 by BCR</button>
+              <button class="btn" id="filterImprove" type="button">Show only improvements vs control</button>
+            </div>
+          </div>
 
-    <!-- AUDIT -->
-    <section class="tab-panel" data-tab-panel="audit" hidden>
-      <div id="auditBox"></div>
-    </section>
-  </main>
+          <div class="callout">
+            <div><b>Snapshot leaderboard</b></div>
+            <div class="muted small">
+              Click a treatment to focus/highlight it in the detailed table below. Control is pinned as the baseline.
+            </div>
+          </div>
 
-  <!-- Calculation Details Drawer -->
-  <div class="drawer-backdrop" id="calcDrawerBackdrop"></div>
-  <aside class="drawer" id="calcDrawer" aria-hidden="true" aria-label="Calculation details drawer">
-    <div class="drawer-head">
-      <div class="drawer-title" id="calcDrawerTitle">Calculation details</div>
-      <button class="btn tiny ghost" id="calcDrawerClose">Close</button>
-    </div>
-    <div class="drawer-body" id="calcDrawerBody"></div>
-  </aside>
+          <div class="table-wrap" id="leaderboardWrap">
+            <table class="table leaderboard" id="leaderboard" aria-label="Treatment leaderboard">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Treatment</th>
+                  <th>ΔNPV vs Control</th>
+                  <th>BCR</th>
+                  <th>PV Cost</th>
+                  <th>PV Benefit</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
 
-  <div id="toast-root"></div>
-</body>
+        <div class="card">
+          <div class="row between">
+            <h2>Comparison to Control</h2>
+            <div class="muted small">Sticky indicator names (left) + sticky treatment headers (top). Horizontal scroll for many treatments.</div>
+          </div>
+
+          <div class="table-wrap comparison-wrap" id="comparisonWrap">
+            <table class="table comparison" id="comparisonTable" aria-label="Comparison to Control table">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="muted small">
+            Tip: click an indicator name to open “Calculation Details” with formulas and reconciliation checks.
+          </div>
+        </div>
+
+        <!-- Calculation Details Drawer -->
+        <div class="drawer-overlay" id="drawerOverlay" hidden></div>
+        <aside class="drawer" id="calcDrawer" aria-hidden="true" hidden>
+          <div class="drawer-header">
+            <div>
+              <div class="drawer-title" id="drawerTitle">Calculation Details</div>
+              <div class="muted small" id="drawerSubtitle"></div>
+            </div>
+            <button class="btn" id="drawerClose" type="button" aria-label="Close">Close</button>
+          </div>
+          <div class="drawer-body">
+            <div class="card inner">
+              <h3>Formula</h3>
+              <div id="formulaPlain" class="muted"></div>
+              <pre id="formulaMath" class="math"></pre>
+            </div>
+
+            <div class="card inner">
+              <h3>Reconciliation checks</h3>
+              <div class="muted small">Flags appear if relationships are violated beyond the chosen tolerance.</div>
+              <div class="table-wrap">
+                <table class="table" id="reconTable" aria-label="Reconciliation table">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <!-- SIMULATIONS -->
+      <section class="tab-panel" id="tab-simulations" data-tab-panel="simulations" role="tabpanel" aria-hidden="true" hidden>
+        <div class="grid-2">
+          <div class="card">
+            <h2>One-way sensitivity (sliders)</h2>
+            <p class="muted small">These change the scenario without changing your base inputs. Use this to understand what drives outcomes.</p>
+
+            <div class="field">
+              <label for="simGrainPrice">Grain price multiplier</label>
+              <input id="simGrainPrice" type="range" min="0.5" max="1.5" step="0.01" />
+              <div class="muted small">Current: <span id="simGrainPriceVal">—</span></div>
+            </div>
+
+            <div class="field">
+              <label for="simYield">Yield level multiplier (all treatments)</label>
+              <input id="simYield" type="range" min="0.7" max="1.3" step="0.01" />
+              <div class="muted small">Current: <span id="simYieldVal">—</span></div>
+            </div>
+
+            <div class="field">
+              <label for="simCosts">Operating cost multiplier (all treatments)</label>
+              <input id="simCosts" type="range" min="0.7" max="1.3" step="0.01" />
+              <div class="muted small">Current: <span id="simCostsVal">—</span></div>
+            </div>
+
+            <div class="field">
+              <label for="simDisc">Discount rate (% p.a.)</label>
+              <input id="simDisc" type="range" min="0" max="20" step="0.25" />
+              <div class="muted small">Current: <span id="simDiscVal">—</span></div>
+            </div>
+
+            <div class="field">
+              <label for="simAdopt">Adoption / implementation rate</label>
+              <input id="simAdopt" type="range" min="0" max="1" step="0.01" />
+              <div class="muted small">Current: <span id="simAdoptVal">—</span></div>
+            </div>
+
+            <div class="field">
+              <label for="simRisk">Risk factor</label>
+              <input id="simRisk" type="range" min="0" max="1" step="0.01" />
+              <div class="muted small">Current: <span id="simRiskVal">—</span></div>
+            </div>
+
+            <div class="row">
+              <button class="btn" id="btnSimReset" type="button">Reset sliders to base</button>
+              <button class="btn primary" id="btnSimApplyToView" type="button">Update simulation outputs</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Break-even tools (decision support)</h2>
+            <p class="muted small">
+              These are “what would need to change” calculators. They are intentionally non-prescriptive.
+            </p>
+
+            <div class="table-wrap">
+              <table class="table" id="breakevenTable" aria-label="Break-even table">
+                <thead>
+                  <tr>
+                    <th>Treatment</th>
+                    <th>Grain price for ΔNPV = 0 vs control</th>
+                    <th>Yield multiplier for BCR = 1</th>
+                    <th>Cost reduction to reach ROI = 0</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <div class="callout">
+              <div><b>Interpretation</b></div>
+              <div class="muted small">
+                If the break-even grain price is far above plausible market prices, the treatment is cost-heavy relative to its benefit.
+                If the break-even cost reduction is large, focus attention on implementational efficiency and input prices.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row between">
+            <h2>Scenario sets</h2>
+            <button class="btn" id="btnSaveScenario" type="button">Save current scenario</button>
+          </div>
+          <div class="muted small">Saved scenarios can be compared instantly (stored locally in your browser).</div>
+          <div id="scenarioList" class="scenario-list"></div>
+        </div>
+      </section>
+
+      <!-- AI -->
+      <section class="tab-panel" id="tab-ai" data-tab-panel="ai" role="tabpanel" aria-hidden="true" hidden>
+        <div class="card">
+          <h2>AI / Copilot prompt builder (structured, policy-neutral)</h2>
+          <p class="muted small">
+            This generates a copy-paste prompt containing scenario settings, a compact version of the “Comparison to Control” results,
+            top drivers per treatment, and explicit instructions to explain trade-offs without recommending a choice.
+          </p>
+
+          <div class="row">
+            <button class="btn primary" id="btnBuildPrompt" type="button">Build prompt</button>
+            <button class="btn" id="btnCopyPrompt" type="button">Copy to clipboard</button>
+            <button class="btn" id="btnExportAIPack" type="button">Export AI brief pack (Excel)</button>
+          </div>
+
+          <div class="field">
+            <label for="aiPrompt">Generated prompt</label>
+            <textarea id="aiPrompt" rows="18" spellcheck="false"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- EXPORTS -->
+      <section class="tab-panel" id="tab-exports" data-tab-panel="exports" role="tabpanel" aria-hidden="true" hidden>
+        <div class="grid-2">
+          <div class="card">
+            <h2>Excel export</h2>
+            <p class="muted small">
+              Creates sheets: Results, Inputs, Assumptions, Simulations (if saved), AuditLog, AI_Prompt.
+            </p>
+            <button class="btn primary" id="btnExportExcel" type="button">Export Excel workbook</button>
+          </div>
+
+          <div class="card">
+            <h2>Printable PDF</h2>
+            <p class="muted small">
+              Uses the browser print pipeline. The Results tab is print-styled and supports a condensed farmer view.
+            </p>
+            <div class="row">
+              <button class="btn primary" id="btnPrintFull" type="button">Print Results (full)</button>
+              <button class="btn" id="btnPrintCondensed" type="button">Print Results (condensed)</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AUDIT -->
+      <section class="tab-panel" id="tab-audit" data-tab-panel="audit" role="tabpanel" aria-hidden="true" hidden>
+        <div class="card">
+          <div class="row between">
+            <h2>Audit log</h2>
+            <button class="btn" id="btnClearAudit" type="button">Clear log</button>
+          </div>
+          <div class="muted small">
+            The tool records: file name, timestamp, rows read, treatments, aggregation rule, assumptions used, and export actions.
+          </div>
+          <div class="table-wrap">
+            <table class="table" id="auditTable" aria-label="Audit log table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Action</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- SheetJS -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+    <script src="app.js"></script>
+  </body>
 </html>
