@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -6,13 +7,11 @@
   <title>Farming CBA Decision Tool — Newcastle Business School</title>
   <meta name="description" content="Control-centric farm cost–benefit analysis tool with robust import pipeline, discounted CBA engine, sensitivity analysis, exports, and AI briefing." />
 
-  <!-- Styles -->
   <link rel="stylesheet" href="styles.css" />
 
   <!-- Optional: XLSX for workbook export (used only if present) -->
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-  <!-- App -->
   <script defer src="app.js"></script>
 </head>
 
@@ -26,7 +25,6 @@
     </div>
   </noscript>
 
-  <!-- Toasts -->
   <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
 
   <div class="app-shell">
@@ -37,11 +35,14 @@
           <div class="brand-title">Farming CBA Decision Tool</div>
           <div class="brand-subtitle">Newcastle Business School · Control-centric results · Excel-first import</div>
         </div>
-      </div>
 
-      <div class="header-actions">
-        <div class="small muted" id="headerDatasetBadge">
-          Dataset: <span id="headerDatasetName">None loaded</span>
+        <div class="header-actions">
+          <div class="small muted" id="headerDatasetBadge">
+            Dataset: <span id="headerDatasetName">Loading default trial dataset…</span>
+          </div>
+          <button class="btn small" id="loadDefaultDataBtn" type="button" title="Reload the default trial dataset (if the default data file exists in the same folder).">
+            Reload default data
+          </button>
         </div>
       </div>
     </header>
@@ -55,7 +56,7 @@
       <button class="tab" type="button" data-tab="sensitivity" role="tab" aria-selected="false">Sensitivity</button>
       <button class="tab" type="button" data-tab="ai" role="tab" aria-selected="false">AI Briefing</button>
       <button class="tab" type="button" data-tab="intro" role="tab" aria-selected="false">Introduction</button>
-      <button class="tab" type="button" data-tab="appendix" role="tab" aria-selected="false">Technical Appendix</button>
+      <button class="tab" type="button" data-tab="appendix" role="tab" aria-selected="false" title="Opens the Technical Appendix in a new browser tab.">Technical Appendix</button>
     </nav>
 
     <main class="tab-panels">
@@ -84,11 +85,11 @@
             </div>
           </div>
 
-          <div class="grid two">
+          <div class="grid three">
             <div class="card">
               <h2>Leaderboard</h2>
               <p class="small muted">
-                This ranks treatments by net present value under the current base case assumptions. The control baseline is not ranked.
+                Ranks treatments by net present value under the current base case assumptions. The control baseline is shown for comparison but not ranked.
               </p>
               <div id="resultsLeaderboard"></div>
             </div>
@@ -96,20 +97,47 @@
             <div class="card">
               <h2>What this means</h2>
               <p class="small muted">
-                Interpretation text updates when you import data, change assumptions, or apply a results filter.
+                This explanation updates when you import data, change assumptions, or apply a results filter.
               </p>
               <div class="prose" id="resultsNarrative"></div>
             </div>
-          </div>
 
-          <div class="card">
-            <h2>Figures</h2>
-            <p class="small muted">
-              These charts give a quick visual snapshot of net returns and the balance between benefits and costs for each treatment compared with the control.
-            </p>
-            <div class="results-charts">
-              <canvas id="chartNpv" height="260" aria-label="Net present value by treatment" role="img"></canvas>
-              <canvas id="chartPv" height="260" aria-label="Present value of benefits and costs by treatment" role="img"></canvas>
+            <div class="card">
+              <div class="card-head">
+                <h2>Figures</h2>
+                <div class="card-head-actions">
+                  <span class="badge" id="figuresBadge">Base case</span>
+                </div>
+              </div>
+              <p class="small muted">
+                These charts are designed for quick reading. They always use the same numbers as the table below.
+              </p>
+
+              <div class="charts-grid">
+                <div class="chart-card">
+                  <div class="chart-title">Net present value by treatment</div>
+                  <canvas id="chartNpv" height="220" aria-label="NPV bar chart"></canvas>
+                  <div class="chart-note small muted">Higher bars mean larger net gains relative to costs under current assumptions.</div>
+                </div>
+
+                <div class="chart-card">
+                  <div class="chart-title">PV benefits and PV costs</div>
+                  <canvas id="chartPv" height="220" aria-label="PV benefits and costs chart"></canvas>
+                  <div class="chart-note small muted">Benefits come from yield changes valued at grain price. Costs include year-zero capital plus recurring application costs.</div>
+                </div>
+
+                <div class="chart-card">
+                  <div class="chart-title">Yield lift and cost per hectare</div>
+                  <canvas id="chartYieldCost" height="220" aria-label="Yield and cost chart"></canvas>
+                  <div class="chart-note small muted">This is a plain view of what drives outcomes: yield difference and extra cost.</div>
+                </div>
+
+                <div class="chart-card">
+                  <div class="chart-title">Sensitivity snapshot</div>
+                  <canvas id="chartSens" height="220" aria-label="Sensitivity chart"></canvas>
+                  <div class="chart-note small muted">A quick look at how NPV moves when grain price changes, holding other inputs fixed.</div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -147,8 +175,14 @@
 
           <div class="grid two">
             <div class="card">
-              <h2>Upload</h2>
-              <p class="small muted">Upload the trial data as a TSV or CSV file.</p>
+              <div class="card-head">
+                <h2>Upload or paste</h2>
+                <div class="card-head-actions">
+                  <button class="btn small" id="reloadDefaultFromImport" type="button">Reload default data</button>
+                </div>
+              </div>
+
+              <p class="small muted">Upload the trial data as a TSV, CSV, or TXT file.</p>
               <div class="field">
                 <label for="dataFile">Data file</label>
                 <input id="dataFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" />
@@ -433,7 +467,7 @@
 
               <h3>Discount schedule (optional)</h3>
               <p class="small muted">
-                If your styles include schedule inputs, the app will read and update them. If you do not use these, base discount rate is used.
+                If you use these schedule inputs, the app will read and update them. If you do not use these, the base discount rate is used.
               </p>
               <div class="table-wrap">
                 <table class="summary-table">
@@ -505,7 +539,7 @@
             <div class="card-head">
               <h2>Outputs list</h2>
               <div class="card-head-actions">
-                <span class="small muted">Edit values to change how yield and other outputs are valued.</span>
+                <span class="small muted">Outputs are editable. Treatments will show a delta input per output.</span>
               </div>
             </div>
 
@@ -528,7 +562,7 @@
             <div class="card-head">
               <h2>Treatments list</h2>
               <div class="card-head-actions">
-                <span class="small muted">Edit recurrence and cost inputs to explore alternative cost structures.</span>
+                <span class="small muted">Import calibrates deltas and incremental costs from plot data. You can edit values here.</span>
               </div>
             </div>
 
@@ -543,7 +577,7 @@
           <div class="page-head">
             <h1>Sensitivity</h1>
             <p class="muted">
-              This runs a grid across grain price, discount rate, persistence of yield effects, and recurrence of costs. Export the grid to analyse in Excel.
+              Runs a grid across grain price, discount rate, persistence of yield effects, and recurrence of costs. Export the grid to analyse in Excel.
             </p>
           </div>
 
@@ -562,6 +596,16 @@
             </p>
 
             <div id="sensitivitySummary" class="prose"></div>
+          </div>
+
+          <div class="card">
+            <h2>Sensitivity figure</h2>
+            <p class="small muted">A quick visual summary (base case values plus the most important movements).</p>
+            <div class="chart-card">
+              <div class="chart-title">NPV across grain price for top NPV treatment</div>
+              <canvas id="chartSensTab" height="260" aria-label="Sensitivity chart tab"></canvas>
+              <div class="chart-note small muted">This helps show how strongly results lean on grain price assumptions.</div>
+            </div>
           </div>
         </div>
       </section>
@@ -624,11 +668,8 @@
                 Costs come from incremental per hectare application costs that can repeat according to the recurrence setting, plus any year zero capital cost.
               </p>
               <p>
-                The trial dataset is loaded by default when the tool opens if the default file is available next to this page. You can still load and test alternative files in the Data Import tab.
-              </p>
-              <p>
-                In the Data Import tab you can upload or paste your dataset and then review the Data Checks panel. If there are error level checks, fix the dataset and parse again.
-                When checks look acceptable, commit the staged dataset. The tool will calibrate treatments from replicate-specific deltas versus control.
+                The tool loads a default trial dataset automatically when the default file exists in the same folder. You can still upload or paste your own dataset in the Data Import tab.
+                After import, review the Data Checks panel. If there are error level checks, fix the dataset and parse again. When checks look acceptable, commit the staged dataset.
               </p>
               <p>
                 Then review Configuration. Set grain price, discount rate, persistence, adoption, and risk multipliers. Results update when inputs change.
@@ -650,31 +691,22 @@
         </div>
       </section>
 
-      <!-- TECHNICAL APPENDIX -->
+      <!-- TECHNICAL APPENDIX (panel kept as a link + status, but the tab opens a new page) -->
       <section class="tab-panel" data-tab-panel="appendix" id="tab-appendix" role="tabpanel" aria-hidden="true" hidden>
         <div class="page">
           <div class="page-head">
             <h1>Technical Appendix</h1>
-            <p class="muted">
-              Schema inference, replicate-specific baselines, cost scaling, and export details.
-              The appendix also opens as a standalone page when you click the Technical Appendix tab.
-            </p>
+            <p class="muted">Opens in a new tab. If popups are blocked, use the link below.</p>
           </div>
 
           <div class="card">
-            <h2>Computation notes</h2>
+            <h2>Open the Technical Appendix</h2>
             <div class="prose">
               <p>
-                The import pipeline parses CSV or TSV with quoted fields. If a pasted text includes a data dictionary section and a data section,
-                the tool attempts to split the text, parse the dictionary, infer schema, and then compute replicate-specific control baselines.
+                <a href="technical-appendix.html" target="_blank" rel="noopener">Open technical-appendix.html in a new tab</a>.
               </p>
               <p>
-                Plot-level yield deltas are computed as plot yield minus the control mean yield within the same replicate. Treatment summaries then average these deltas.
-                Incremental costs are derived as differences in cost columns versus replicate-specific control means, mapped into labour, services, and materials buckets using transparent header rules.
-              </p>
-              <p>
-                The cost scaling rule treats per hectare application costs as occurring in year zero and repeating every recurrence interval if recurrence is greater than zero.
-                Yield benefits are applied from year one through the persistence horizon.
+                The appendix page explains schema inference, replicate-specific baselines, cost scaling, and the exact export fields.
               </p>
             </div>
           </div>
@@ -682,10 +714,6 @@
           <div class="card">
             <h2>Import summary</h2>
             <p class="small muted" id="importStatus">No dataset parsed yet.</p>
-            <p class="small muted">
-              To view or print a standalone appendix, ensure a file named <code>technical-appendix.html</code> is deployed alongside this tool.
-              Clicking the “Technical Appendix” tab will open it in a new browser tab.
-            </p>
           </div>
         </div>
       </section>
