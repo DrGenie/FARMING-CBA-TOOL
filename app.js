@@ -40,7 +40,8 @@
       costs: "",
       simulation: "",
       working: ""
-    }
+    },
+    baseResults: null
   };
 
   const DOM = {};
@@ -116,12 +117,6 @@
 
     DOM.toastHost = document.getElementById("toastHost");
     DOM.toastRegion = document.getElementById("toastRegion");
-
-    DOM.modalOverlay = document.getElementById("modalOverlay");
-    DOM.modalTitle = document.getElementById("modalTitle");
-    DOM.modalBody = document.getElementById("modalBody");
-    DOM.modalCloseBtn = document.getElementById("modalCloseBtn");
-    DOM.modalOkBtn = document.getElementById("modalOkBtn");
   }
 
   /* Tabs */
@@ -134,7 +129,6 @@
         setActiveTab(target);
       });
     });
-    // Default tab is Results
     setActiveTab("tab-results");
   }
 
@@ -192,9 +186,6 @@
         });
       }
     });
-
-    DOM.modalCloseBtn.addEventListener("click", hideModal);
-    DOM.modalOkBtn.addEventListener("click", hideModal);
   }
 
   /* Data loading */
@@ -214,10 +205,12 @@
       .catch((err) => {
         console.error(err);
         showToast("Could not load default dataset: " + err.message, "error");
-        DOM.dataSummary.innerHTML =
-          "<p>Failed to load <code>" +
-          DEFAULT_FILE_NAME +
-          "</code>. You can still upload or paste a dataset on this page.</p>";
+        if (DOM.dataSummary) {
+          DOM.dataSummary.innerHTML =
+            "<p>Failed to load <code>" +
+            DEFAULT_FILE_NAME +
+            "</code>. You can still upload or paste a dataset on this page.</p>";
+        }
       });
   }
 
@@ -269,8 +262,12 @@
       const row = {};
       headers.forEach((h, idx) => {
         const raw = parts[idx] !== undefined ? parts[idx].trim() : "";
-        const numeric = raw === "" || raw === "NA" || raw === "NaN" ? null : Number(raw);
-        row[h] = isFinite(numeric) && raw !== "" ? numeric : raw;
+        if (raw === "" || raw === "NA" || raw === "NaN" || raw === "?") {
+          row[h] = null;
+        } else {
+          const numeric = Number(raw);
+          row[h] = isFinite(numeric) ? numeric : raw;
+        }
       });
       rows.push(row);
     }
@@ -301,7 +298,7 @@
       replicate: find(["replicate", "replicate_id", "rep"]),
       treatment: find(["treatment_name", "treatment", "amendment_name"]),
       control: find(["is_control", "control", "control_flag"]),
-      yield: find(["yield_t_ha", "yield", "yield_t/ha"]),
+      yield: find(["yield_t_ha", "yield", "yield_t/ha", "grain_yield_t_ha"]),
       variableCost: find(["total_cost_per_ha_raw", "variable_cost_per_ha", "variable_cost", "total_cost_per_ha"]),
       capitalCost: find([
         "capital_cost_per_ha",
@@ -332,11 +329,11 @@
         });
       }
       const entry = map.get(tName);
-      const yieldVal = Number(row[colYield]);
-      if (isFinite(yieldVal)) entry.yields.push(yieldVal);
+      const yVal = Number(row[colYield]);
+      if (isFinite(yVal)) entry.yields.push(yVal);
 
-      const costVal = Number(row[colVarCost]);
-      if (isFinite(costVal)) entry.costs.push(costVal);
+      const cVal = Number(row[colVarCost]);
+      if (isFinite(cVal)) entry.costs.push(cVal);
 
       const controlVal = row[colControl];
       if (String(controlVal).toLowerCase() === "true" || controlVal === 1) {
@@ -385,10 +382,10 @@
     state.settings.horizonYears = 10;
     state.settings.persistence = 1;
 
-    DOM.grainPriceInput.value = state.settings.grainPrice;
-    DOM.discountRateInput.value = state.settings.discountRate;
-    DOM.horizonYearsInput.value = state.settings.horizonYears;
-    DOM.persistenceInput.value = state.settings.persistence;
+    if (DOM.grainPriceInput) DOM.grainPriceInput.value = state.settings.grainPrice;
+    if (DOM.discountRateInput) DOM.discountRateInput.value = state.settings.discountRate;
+    if (DOM.horizonYearsInput) DOM.horizonYearsInput.value = state.settings.horizonYears;
+    if (DOM.persistenceInput) DOM.persistenceInput.value = state.settings.persistence;
 
     resetScenariosInternal();
   }
@@ -656,7 +653,6 @@
       tr.appendChild(onceTd);
 
       const totalTd = document.createElement("td");
-      totalTd.dataset.benefitTotalFor = t.treatment;
       totalTd.textContent = "0";
       tr.appendChild(totalTd);
 
@@ -714,7 +710,6 @@
       });
 
       const totalTd = document.createElement("td");
-      totalTd.dataset.costTotalFor = t.treatment;
       totalTd.textContent = "0";
       tr.appendChild(totalTd);
 
@@ -754,7 +749,7 @@
     });
     state.baseResults = baseResults;
 
-    updateBenefitAndCostTotalsFromBase(baseResults);
+    updateBenefitAndCostTotalsFromBase();
     refreshScenarios(baseResults);
     renderResults(baseResults);
     renderFigures(baseResults);
@@ -803,13 +798,12 @@
       }
 
       let pvCosts = 0;
-      pvCosts += baseCost + extraC.seed + extraC.labour + extraC.machinery + extraC.chemicals + extraC.other;
+      const extraCostTotal = extraC.seed + extraC.labour + extraC.machinery + extraC.chemicals + extraC.other;
+      pvCosts += baseCost + extraCostTotal;
       for (let year = 1; year < n; year++) {
         const discountFactor = 1 / Math.pow(1 + r, year);
         const persistenceFactor = Math.pow(p, year);
-        const annualCost =
-          (baseCost * recurringShare + (extraC.seed + extraC.labour + extraC.machinery + extraC.chemicals + extraC.other) * recurringShare) *
-          persistenceFactor;
+        const annualCost = (baseCost * recurringShare + extraCostTotal * recurringShare) * persistenceFactor;
         pvCosts += annualCost * discountFactor;
       }
 
@@ -849,56 +843,58 @@
     return { scenario, results, control };
   }
 
-  function updateBenefitAndCostTotalsFromBase(baseResults) {
-    const benefitTotalsMap = {};
-    const costTotalsMap = {};
-    baseResults.results.forEach((r) => {
-      const name = r.treatment;
-      const extraB = state.extraBenefits[name];
-      const extraC = state.extraCosts[name];
-      if (extraB) {
-        const pvExtraB = r.pvBenefits - (r.pvBenefits - (extraB.annual + extraB.onceOff)); // not ideal but we will recompute below
-        benefitTotalsMap[name] = pvExtraB;
-      }
-      if (extraC) {
-        const totalExtra = extraC.seed + extraC.labour + extraC.machinery + extraC.chemicals + extraC.other;
-        costTotalsMap[name] = totalExtra;
-      }
-    });
+  function updateBenefitAndCostTotalsFromBase() {
+    if (!state.treatmentSummaries.length) return;
 
-    // Benefits totals: easier to recompute directly
     const r = state.settings.discountRate / 100;
     const n = state.settings.horizonYears;
     const p = state.settings.persistence;
-    state.treatmentSummaries.forEach((t) => {
-      const name = t.treatment;
-      const b = state.extraBenefits[name];
-      if (!b) return;
-      let pv = 0;
-      for (let year = 0; year < n; year++) {
-        const discountFactor = 1 / Math.pow(1 + r, year);
-        const persistenceFactor = Math.pow(p, year);
-        const annual = b.annual * persistenceFactor;
-        if (year === 0) {
-          pv += (annual + b.onceOff) * discountFactor;
-        } else {
-          pv += annual * discountFactor;
-        }
-      }
-      benefitTotalsMap[name] = pv;
-    });
 
-    state.treatmentSummaries.forEach((t) => {
-      const name = t.treatment;
-      const benefitCell = DOM.benefitConfigTable.querySelector(`td[data-benefit-total-for="${cssEscape(name)}"]`);
-      if (benefitCell) {
-        benefitCell.textContent = formatCurrency(benefitTotalsMap[name] || 0);
-      }
-      const costCell = DOM.costConfigTable.querySelector(`td[data-cost-total-for="${cssEscape(name)}"]`);
-      if (costCell) {
-        costCell.textContent = formatCurrency(costTotalsMap[name] || 0);
-      }
-    });
+    // Update benefits PV totals
+    if (DOM.benefitConfigTable) {
+      const rows = DOM.benefitConfigTable.querySelectorAll("tbody tr");
+      rows.forEach((tr) => {
+        const nameCell = tr.cells[0];
+        const totalCell = tr.cells[3];
+        if (!nameCell || !totalCell) return;
+        const name = nameCell.textContent.trim();
+        const extraB = state.extraBenefits[name];
+        if (!extraB) {
+          totalCell.textContent = formatCurrency(0);
+          return;
+        }
+        let pv = 0;
+        for (let year = 0; year < n; year++) {
+          const discountFactor = 1 / Math.pow(1 + r, year);
+          const persistenceFactor = Math.pow(p, year);
+          const annual = extraB.annual * persistenceFactor;
+          if (year === 0) {
+            pv += (annual + extraB.onceOff) * discountFactor;
+          } else {
+            pv += annual * discountFactor;
+          }
+        }
+        totalCell.textContent = formatCurrency(pv);
+      });
+    }
+
+    // Update extra cost totals (simple non-discounted per ha)
+    if (DOM.costConfigTable) {
+      const rows = DOM.costConfigTable.querySelectorAll("tbody tr");
+      rows.forEach((tr) => {
+        const nameCell = tr.cells[0];
+        const totalCell = tr.cells[6];
+        if (!nameCell || !totalCell) return;
+        const name = nameCell.textContent.trim();
+        const extraC = state.extraCosts[name];
+        if (!extraC) {
+          totalCell.textContent = formatCurrency(0);
+          return;
+        }
+        const total = extraC.seed + extraC.labour + extraC.machinery + extraC.chemicals + extraC.other;
+        totalCell.textContent = formatCurrency(total);
+      });
+    }
   }
 
   /* Results rendering */
@@ -930,7 +926,7 @@
         .slice(0, 5);
     } else if (currentFilterMode === "improved") {
       if (baseResults.control) {
-        rows = rows.filter((r) => r.deltaNPV > 0 && r.treatment !== baseResults.control.treatment);
+        rows = rows.filter((r) => r.deltaNPV > 0 && !r.isControl);
       }
     }
     return rows;
@@ -999,6 +995,7 @@
     ];
 
     const rowsForDisplay = filterResultsForDisplay(baseResults);
+    if (!rowsForDisplay.length) return;
 
     const trHead = document.createElement("tr");
     const firstTh = document.createElement("th");
@@ -1020,15 +1017,15 @@
 
       rowsForDisplay.forEach((r) => {
         const td = document.createElement("td");
-        let val = r[ind.key];
-        if (ind.key === "pvBenefits" || ind.key === "pvCosts" || ind.key === "npv" || ind.key === "deltaNPV" || ind.key === "deltaCost") {
+        const val = r[ind.key];
+        if (["pvBenefits", "pvCosts", "npv", "deltaNPV", "deltaCost"].includes(ind.key)) {
           td.textContent = val == null ? "–" : formatCurrency(val);
         } else if (ind.key === "bcr") {
-          td.textContent = val == null ? "–" : formatNumber(val, 2);
+          td.textContent = val != null ? formatNumber(val, 2) : "–";
         } else if (ind.key === "roi") {
-          td.textContent = val == null ? "–" : formatPercent(val);
+          td.textContent = val != null ? formatPercent(val) : "–";
         } else if (ind.key === "rank") {
-          td.textContent = val == null ? "–" : String(val);
+          td.textContent = val != null ? String(val) : "–";
         } else {
           td.textContent = val == null ? "–" : String(val);
         }
@@ -1048,6 +1045,8 @@
 
   function renderNpvVsControlChart(baseResults) {
     if (!DOM.npvVsControlCanvas) return;
+    if (typeof Chart === "undefined") return;
+
     const ctx = DOM.npvVsControlCanvas.getContext("2d");
     if (state.charts.npvVsControl) {
       state.charts.npvVsControl.destroy();
@@ -1102,6 +1101,8 @@
 
   function renderCostBenefitChart(baseResults) {
     if (!DOM.costBenefitCanvas) return;
+    if (typeof Chart === "undefined") return;
+
     const ctx = DOM.costBenefitCanvas.getContext("2d");
     if (state.charts.costBenefit) {
       state.charts.costBenefit.destroy();
@@ -1158,7 +1159,8 @@
         id: makeId(),
         name: "Base",
         settings: { ...state.settings },
-        lockedBase: true
+        lockedBase: true,
+        results: null
       }
     ];
   }
@@ -1168,10 +1170,10 @@
       resetScenariosInternal();
     }
     state.scenarios.forEach((sc) => {
-      sc.results = computeEconomicsForScenario(sc);
       if (sc.lockedBase) {
         sc.settings = { ...state.settings };
       }
+      sc.results = computeEconomicsForScenario(sc);
     });
   }
 
@@ -1298,6 +1300,8 @@
 
   function renderScenarioChart() {
     if (!DOM.scenarioCanvas) return;
+    if (typeof Chart === "undefined") return;
+
     const ctx = DOM.scenarioCanvas.getContext("2d");
     if (state.charts.scenarios) {
       state.charts.scenarios.destroy();
@@ -1310,14 +1314,18 @@
     state.scenarios.forEach((sc) => {
       const control = sc.results.control;
       let best = null;
+      let gain = 0;
       if (control) {
         best = sc.results.results
           .filter((r) => !r.isControl)
           .slice()
           .sort((a, b) => (b.npv || 0) - (a.npv || 0))[0];
+        if (best) {
+          gain = best.npv - control.npv;
+        }
       }
       labels.push(sc.name);
-      gains.push(best && control ? best.npv - control.npv : 0);
+      gains.push(gain);
     });
 
     state.charts.scenarios = new Chart(ctx, {
@@ -1359,7 +1367,8 @@
       id: makeId(),
       name: name,
       settings: { ...state.settings },
-      lockedBase: false
+      lockedBase: false,
+      results: null
     };
     sc.results = computeEconomicsForScenario(sc);
     state.scenarios.push(sc);
@@ -1368,9 +1377,9 @@
   }
 
   function resetScenarios() {
-    if (!confirm("Reset scenarios to a single base scenario?")) return;
+    if (!window.confirm("Reset scenarios to a single base scenario?")) return;
     resetScenariosInternal();
-    refreshScenarios(state.baseResults);
+    refreshScenarios(state.baseResults || { scenario: null, results: [], control: null });
     renderScenarioView();
   }
 
@@ -1451,7 +1460,7 @@
       const line = [ind.label];
       rows.forEach((r) => {
         const val = r[ind.key];
-        if (ind.key === "pvBenefits" || ind.key === "pvCosts" || ind.key === "npv" || ind.key === "deltaNPV" || ind.key === "deltaCost") {
+        if (["pvBenefits", "pvCosts", "npv", "deltaNPV", "deltaCost"].includes(ind.key)) {
           line.push(round(val));
         } else if (ind.key === "bcr") {
           line.push(val != null ? round(val, 3) : "");
@@ -1526,13 +1535,7 @@
       const line = [ind.label];
       rows.forEach((r) => {
         const val = r[ind.key];
-        if (ind.key === "pvBenefits" || ind.key === "pvCosts" || ind.key === "npv" || ind.key === "deltaNPV" || ind.key === "deltaCost") {
-          line.push(val);
-        } else if (ind.key === "bcr" || ind.key === "roi" || ind.key === "rank") {
-          line.push(val);
-        } else {
-          line.push(val);
-        }
+        line.push(val);
       });
       compRows.push(line);
     });
@@ -1597,7 +1600,7 @@
     showToast("Scenario results downloaded.", "success");
   }
 
-  /* Toast and modal */
+  /* Toast */
 
   function showToast(message, type = "info") {
     if (!DOM.toastHost) return;
@@ -1620,18 +1623,6 @@
         DOM.toastHost.removeChild(div);
       }
     }, 4000);
-  }
-
-  function showModal(title, bodyHtml) {
-    if (!DOM.modalOverlay) return;
-    DOM.modalTitle.textContent = title;
-    DOM.modalBody.innerHTML = bodyHtml;
-    DOM.modalOverlay.hidden = false;
-  }
-
-  function hideModal() {
-    if (!DOM.modalOverlay) return;
-    DOM.modalOverlay.hidden = true;
   }
 
   /* Utilities */
@@ -1674,10 +1665,6 @@
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
-  }
-
-  function cssEscape(str) {
-    return str.replace(/"/g, "").replace(/\\/g, "\\\\");
   }
 
   function downloadCsv(rows, filename) {
