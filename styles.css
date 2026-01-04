@@ -1,3 +1,4 @@
+/* styles.css */
 :root{
   --wb-ink:#0b1220;
   --wb-ink-2:#1f2a44;
@@ -468,10 +469,13 @@ a:hover{ text-decoration:underline; }
   border-radius: 12px;
   border: 1px solid rgba(199, 210, 230, 0.75);
   background:#ffffff;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table-scroll.xscroll{ overflow-x:auto; overflow-y:hidden; }
 .table-scroll:not(.xscroll){ overflow:auto; }
+
+.table-scroll-inner{ min-width: 100%; }
 
 .summary-table{
   width:100%;
@@ -542,7 +546,7 @@ a:hover{ text-decoration:underline; }
   z-index: 5;
 }
 
-/* Visual pin for control column: add subtle divider and stronger background via JS adding class, but provide fallback */
+/* Visual pin for control column */
 .sticky-grid #comparisonTable th:nth-child(2),
 .sticky-grid #comparisonTable td:nth-child(2){
   background: #f6fbf8;
@@ -667,7 +671,7 @@ a:hover{ text-decoration:underline; }
   flex-direction:column;
   gap:0.55rem;
   pointer-events:none;
-  max-width: min(420px, calc(100vw - 32px));
+  max-width: min(440px, calc(100vw - 32px));
 }
 
 .toast{
@@ -845,27 +849,36 @@ a:hover{ text-decoration:underline; }
     align-items:flex-start;
   }
   .header-actions{ justify-content:flex-start; }
+
+  /* Mobile-first: keep tabs in a single scroll row instead of wrapping into a tall block */
   #navPrimary.tabs-nav,
   .tabs-nav{
     top: 126px;
     border-radius: 18px;
     padding:0.45rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
   }
   .tab-link{
-    flex: 1 1 calc(50% - 0.35rem);
+    flex: 0 0 auto;
     text-align:center;
   }
+
   .results-header{
     flex-direction:column;
     align-items:flex-start;
   }
+
+  .summary-table{ min-width: 680px; }
 }
 
 @media (max-width: 520px){
   .app-main{ padding: 0 0.85rem 1rem; }
   .card{ padding: 0.9rem; }
-  .tab-link{ flex: 1 1 100%; }
   #toastHost{ right: 12px; bottom: 12px; }
+  .summary-table{ min-width: 640px; }
 }
 
 /* Print */
