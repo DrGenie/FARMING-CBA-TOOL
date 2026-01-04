@@ -1,794 +1,747 @@
+<!-- index.html -->
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="description" content="Farming CBA Decision Tool 2 — control-centric cost–benefit analysis with Excel-first workflow." />
-    <title>Farming CBA Decision Tool 2</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b3a5b" />
+  <title>Farming CBA Decision Tool 2 — Faba bean trial</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
 
-  <body>
-    <a class="skip-link" href="#main">Skip to content</a>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
 
-    <header class="app-header">
-      <div class="header-inner">
-        <div class="brand">
-          <div class="brand-mark" aria-hidden="true">NBS</div>
-          <div class="brand-text">
-            <div class="kicker">Newcastle Business School</div>
-            <h1 id="appTitle">Farming CBA Decision Tool 2</h1>
-            <div class="subkicker">Control-centric results • Excel-first workflow • Export-ready outputs</div>
-          </div>
-        </div>
-
-        <div class="header-actions">
-          <button class="btn ghost" id="exportProjectJsonBtn" type="button" title="Download a JSON snapshot of the full project state">
-            Export project JSON
-          </button>
-          <button class="btn ghost" id="exportPdfBtn" type="button" title="Print or save to PDF">
-            Print / Save as PDF
-          </button>
-        </div>
+  <header class="app-header">
+    <div class="app-brand">
+      <div class="brand-mark" aria-hidden="true">N</div>
+      <div class="brand-text">
+        <div class="brand-title">Farming CBA Decision Tool 2</div>
+        <div class="brand-subtitle">Faba bean soil amendment trial, control-centric cost–benefit analysis</div>
       </div>
+    </div>
 
-      <nav class="tabs" aria-label="Tool sections">
-        <button class="tab active" data-tab-target="results" type="button" aria-selected="true">Results</button>
-        <button class="tab" data-tab-target="data" type="button" aria-selected="false">Data import</button>
-        <button class="tab" data-tab-target="introduction" type="button" aria-selected="false">Introduction</button>
-        <button class="tab" data-tab-target="basics" type="button" aria-selected="false">Project & settings</button>
-        <button class="tab" data-tab-target="outputs" type="button" aria-selected="false">Outputs</button>
-        <button class="tab" data-tab-target="treatments" type="button" aria-selected="false">Treatments</button>
-        <button class="tab" data-tab-target="benefits" type="button" aria-selected="false">Additional benefits</button>
-        <button class="tab" data-tab-target="costs" type="button" aria-selected="false">Other costs</button>
-        <button class="tab" data-tab-target="simulations" type="button" aria-selected="false">Simulations</button>
-        <button class="tab" data-tab-target="ai" type="button" aria-selected="false">Copilot / AI</button>
+    <div class="header-actions">
+      <button class="btn ghost" id="openTechnicalAppendix" title="Open the technical appendix in a new tab">Technical appendix</button>
+      <button class="btn ghost" id="exportCleanedTsv" title="Export the cleaned dataset as a tab separated file">Export cleaned dataset</button>
+      <button class="btn ghost" id="exportTreatmentSummaryCsv" title="Export treatment summary table as a comma separated file">Export treatment summary</button>
+      <button class="btn ghost" id="exportSensitivityCsv" title="Export the full sensitivity grid as a comma separated file">Export sensitivity grid</button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="app-nav" aria-label="Primary navigation">
+      <nav class="nav">
+        <button class="nav-item active" data-tab="results" aria-selected="true">
+          <span class="nav-dot" aria-hidden="true"></span>
+          Results
+        </button>
+        <button class="nav-item" data-tab="import" aria-selected="false">
+          <span class="nav-dot" aria-hidden="true"></span>
+          Import data
+        </button>
+        <button class="nav-item" data-tab="configuration" aria-selected="false">
+          <span class="nav-dot" aria-hidden="true"></span>
+          Configuration
+        </button>
+        <button class="nav-item" data-tab="ai" aria-selected="false">
+          <span class="nav-dot" aria-hidden="true"></span>
+          AI briefing
+        </button>
+        <button class="nav-item" data-tab="diagnostics" aria-selected="false">
+          <span class="nav-dot" aria-hidden="true"></span>
+          Diagnostics
+        </button>
+
+        <div class="nav-sep" aria-hidden="true"></div>
+
+        <button class="nav-item" data-tab="project" aria-selected="false">
+          <span class="nav-dot" aria-hidden="true"></span>
+          Project
+        </button>
+        <button class="nav-item" data-tab="outputs" aria-selected="false">
+          <span class="nav-dot" aria-hidden="true"></span>
+          Outputs and values
+        </button>
+        <button class="nav-item" data-tab="treatments" aria-selected="false">
+          <span class="nav-dot" aria-hidden="true"></span>
+          Treatments editor
+        </button>
+        <button class="nav-item" data-tab="benefits" aria-selected="false">
+          <span class="nav-dot" aria-hidden="true"></span>
+          Additional benefits
+        </button>
+        <button class="nav-item" data-tab="costs" aria-selected="false">
+          <span class="nav-dot" aria-hidden="true"></span>
+          Other costs
+        </button>
+        <button class="nav-item" data-tab="simulation" aria-selected="false">
+          <span class="nav-dot" aria-hidden="true"></span>
+          Simulation
+        </button>
       </nav>
-    </header>
+    </aside>
 
     <main id="main" class="app-main">
-      <!-- =========================
-           RESULTS (DEFAULT LANDING)
-           ========================= -->
-      <section class="tab-panel active" data-tab-panel="results" id="tab-results" aria-hidden="false">
-        <div class="panel-head">
-          <div>
-            <h2>Results</h2>
-            <p class="muted">
-              The default landing view is a control-centric comparison. Control (baseline) is shown alongside every treatment.
-            </p>
-          </div>
-          <div class="pill-row">
-            <span class="pill">Sticky table headers</span>
-            <span class="pill">Horizontal scroll for many treatments</span>
-            <span class="pill">Excel and CSV export</span>
-          </div>
+      <!-- RESULTS -->
+      <section class="tab-panel active show" id="tab-results" data-tab-panel="results" aria-hidden="false">
+        <div class="page-head">
+          <h1>Results</h1>
+          <p class="lead">
+            This view compares every treatment to the control baseline under the selected scenario. The table is control-centric and designed to be read like a spreadsheet.
+          </p>
         </div>
 
-        <section class="cards">
+        <div class="grid-2">
           <div class="card">
-            <div class="card-title">PV Benefits</div>
-            <div class="value" id="pvBenefits">$0</div>
-            <div class="card-note muted">Discounted value of benefits over the period.</div>
-          </div>
-
-          <div class="card">
-            <div class="card-title">PV Costs</div>
-            <div class="value" id="pvCosts">$0</div>
-            <div class="card-note muted">Capital is year 0; annual costs are discounted.</div>
-          </div>
-
-          <div class="card">
-            <div class="card-title">NPV</div>
-            <div class="value positive" id="npv">$0</div>
-            <div class="card-note muted">PV Benefits − PV Costs.</div>
-          </div>
-
-          <div class="card">
-            <div class="card-title">BCR</div>
-            <div class="value" id="bcr">n/a</div>
-            <div class="card-note muted">PV Benefits ÷ PV Costs.</div>
-          </div>
-
-          <div class="card">
-            <div class="card-title">ROI</div>
-            <div class="value" id="roi">n/a</div>
-            <div class="card-note muted">NPV ÷ PV Costs (%).</div>
-          </div>
-
-          <div class="card">
-            <div class="card-title">Payback</div>
-            <div class="value" id="payback">Not reached</div>
-            <div class="card-note muted">Discounted payback (years).</div>
-          </div>
-        </section>
-
-        <section class="grid-2">
-          <div class="panel">
-            <div class="panel-title-row">
-              <h3>Snapshot leaderboard</h3>
-              <div class="muted small">Quick view: rank, NPV, BCR and deltas vs control.</div>
-            </div>
-            <div id="leaderboard" class="panel-body">
-              <div class="skeleton">
-                <div class="skeleton-bar"></div>
-                <div class="skeleton-bar"></div>
-                <div class="skeleton-bar"></div>
+            <div class="card-header">
+              <h2>Scenario settings</h2>
+              <div class="card-actions">
+                <button class="btn" id="recomputeTrial">Recalculate</button>
               </div>
             </div>
-          </div>
 
-          <div class="panel">
-            <div class="panel-title-row">
-              <h3>Validation summary</h3>
-              <div class="muted small">Loaded Excel sheet, missing values, and formula detection.</div>
-            </div>
-            <div id="validationPanel" class="panel-body"></div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-title-row">
-            <h3>Comparison to Control</h3>
-            <div class="muted small">Rows = indicators; columns = Control + treatments with Δ vs Control.</div>
-          </div>
-          <div id="comparisonTable" class="panel-body">
-            <div class="skeleton">
-              <div class="skeleton-bar"></div>
-              <div class="skeleton-bar"></div>
-              <div class="skeleton-bar"></div>
-              <div class="skeleton-bar"></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="grid-2">
-          <div class="panel">
-            <div class="panel-title-row">
-              <h3>Time horizon check</h3>
-              <div class="muted small">PV and NPV at common horizons (based on base case settings).</div>
-            </div>
-
-            <div class="panel-body">
-              <div class="table-wrap compact">
-                <table class="table" id="timeProjectionTable">
-                  <thead>
-                    <tr>
-                      <th>Years</th>
-                      <th>PV Benefits</th>
-                      <th>PV Costs</th>
-                      <th>NPV</th>
-                      <th>BCR</th>
-                    </tr>
-                  </thead>
-                  <tbody></tbody>
-                </table>
-              </div>
-
-              <div class="chart-card">
-                <div class="muted small">NPV by horizon</div>
-                <canvas id="timeNpvChart" width="720" height="260" aria-label="NPV by horizon chart"></canvas>
-              </div>
-
-              <div class="inline-stats">
-                <div class="stat">
-                  <div class="muted small">IRR</div>
-                  <div id="irr" class="stat-val">n/a</div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="selPrice">Grain price (Australian dollars per tonne)</label>
+                  <select id="selPrice"></select>
+                  <div class="help">This price drives the value of incremental yield relative to the control.</div>
                 </div>
-                <div class="stat">
-                  <div class="muted small">MIRR</div>
-                  <div id="mirr" class="stat-val">n/a</div>
+
+                <div class="field">
+                  <label for="selDiscount">Discount rate (per year)</label>
+                  <select id="selDiscount"></select>
+                  <div class="help">This affects how future benefits and costs are discounted to present value.</div>
                 </div>
-                <div class="stat">
-                  <div class="muted small">Gross margin (annual)</div>
-                  <div id="grossMargin" class="stat-val">$0</div>
+
+                <div class="field">
+                  <label for="selPersistence">Yield persistence pattern</label>
+                  <select id="selPersistence"></select>
+                  <div class="help">This describes how long the yield uplift is expected to persist after the first season.</div>
                 </div>
-                <div class="stat">
-                  <div class="muted small">Profit margin</div>
-                  <div id="profitMargin" class="stat-val">n/a</div>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <div class="panel">
-            <div class="panel-title-row">
-              <h3>Depreciation summary</h3>
-              <div class="muted small">Only shown when depreciation is configured for capital items.</div>
-            </div>
-            <div class="panel-body" id="depSummary"></div>
-          </div>
-        </section>
-      </section>
-
-      <!-- =========================
-           DATA IMPORT
-           ========================= -->
-      <section class="tab-panel" data-tab-panel="data" id="tab-data" hidden aria-hidden="true">
-        <div class="panel-head">
-          <div>
-            <h2>Data import</h2>
-            <p class="muted">
-              Upload your Excel file and the tool will parse, validate, and recalibrate using the same pipeline as the default dataset.
-            </p>
-          </div>
-        </div>
-
-        <section class="panel">
-          <div class="panel-body">
-            <div class="callout">
-              <strong>Excel-first workflow.</strong>
-              Download the template, edit the <code>FabaBeanRaw</code> sheet, then upload it back here.
-              Use <code>?</code> for unknown values (treated as missing, never zero).
-            </div>
-
-            <div class="row-6">
-              <div class="field">
-                <label>Upload Excel (.xlsx)</label>
-                <input id="excelUpload" type="file" accept=".xlsx,.xls" />
-                <div class="help">Expected sheet name: <code>FabaBeanRaw</code> (variants accepted).</div>
-              </div>
-
-              <div class="field">
-                <label>&nbsp;</label>
-                <button id="uploadExcelBtn" class="btn primary" type="button">Upload and apply</button>
-                <div class="help">Parses and validates using the Excel pipeline.</div>
-              </div>
-
-              <div class="field">
-                <label>&nbsp;</label>
-                <button id="downloadTemplateBtn" class="btn ghost" type="button">Download Excel template</button>
-                <div class="help">Template mirrors the embedded default dataset.</div>
-              </div>
-
-              <div class="field">
-                <label>&nbsp;</label>
-                <button id="downloadCurrentBtn" class="btn ghost" type="button">Download current dataset workbook</button>
-                <div class="help">Exports the preserved raw rows currently loaded.</div>
-              </div>
-
-              <div class="field">
-                <label>&nbsp;</label>
-                <button id="reloadDefaultBtn" class="btn" type="button">Reload default dataset</button>
-                <div class="help">Rebuilds the default workbook and re-runs the same pipeline.</div>
-              </div>
-
-              <div class="field">
-                <label>&nbsp;</label>
-                <button class="btn ghost" data-tab-jump="results" type="button">Go to Results</button>
-                <div class="help">Opens the comparison-to-control table.</div>
-              </div>
-            </div>
-
-            <div class="spacer"></div>
-
-            <div class="panel slim">
-              <div class="panel-title-row">
-                <h3>Validation details</h3>
-                <div class="muted small">If you see errors, fix the Excel sheet and upload again.</div>
-              </div>
-              <div class="panel-body" id="validationPanelDataMirror"></div>
-            </div>
-          </div>
-        </section>
-      </section>
-
-      <!-- =========================
-           INTRODUCTION
-           ========================= -->
-      <section class="tab-panel" data-tab-panel="introduction" id="tab-introduction" hidden aria-hidden="true">
-        <div class="panel-head">
-          <div>
-            <h2>Introduction</h2>
-            <p class="muted">
-              This tool summarises costs and benefits over time and compares treatments against a single control baseline.
-              Edit assumptions and inputs to explore trade-offs and sensitivities.
-            </p>
-          </div>
-        </div>
-
-        <section class="panel">
-          <div class="panel-body prose">
-            <h3>How to read the Results tab</h3>
-            <p>
-              The main table is a “Comparison to Control” view. Each indicator is a row. The first value column is the
-              control baseline. For every treatment, the table shows the treatment value, the absolute difference versus
-              control, and where meaningful, the percentage difference.
-            </p>
-            <h3>Missing values</h3>
-            <p>
-              If the Excel file contains blanks or <code>?</code>, the tool treats those cells as missing and flags them
-              in validation. Missing values are not forced to zero. Where a missing input would otherwise break a calculation,
-              the tool keeps computations stable but reports the missingness in the validation panel.
-            </p>
-            <h3>Exports</h3>
-            <p>
-              The comparison table can be exported directly to Excel for reporting and copy-paste into Word. Use
-              Print/Save as PDF for a clean printable view.
-            </p>
-          </div>
-        </section>
-      </section>
-
-      <!-- =========================
-           PROJECT & SETTINGS
-           ========================= -->
-      <section class="tab-panel" data-tab-panel="basics" id="tab-basics" hidden aria-hidden="true">
-        <div class="panel-head">
-          <div>
-            <h2>Project & settings</h2>
-            <p class="muted">Project metadata, timeline, discounting, adoption, risk and simulation settings.</p>
-          </div>
-        </div>
-
-        <section class="panel">
-          <div class="panel-title-row">
-            <h3>Project details</h3>
-            <div class="muted small">Used in exports and documentation.</div>
-          </div>
-          <div class="panel-body">
-            <div class="row-6">
-              <div class="field"><label>Project name</label><input id="projectName" /></div>
-              <div class="field"><label>Project lead</label><input id="projectLead" /></div>
-              <div class="field"><label>Analysts</label><input id="analystNames" /></div>
-              <div class="field"><label>Team</label><input id="projectTeam" /></div>
-              <div class="field"><label>Organisation</label><input id="organisation" /></div>
-              <div class="field"><label>Last updated</label><input id="lastUpdated" type="date" /></div>
-            </div>
-
-            <div class="field">
-              <label>Summary</label>
-              <textarea id="projectSummary" rows="3"></textarea>
-            </div>
-
-            <div class="row-2">
-              <div class="field">
-                <label>Objectives</label>
-                <textarea id="projectObjectives" rows="3"></textarea>
-              </div>
-              <div class="field">
-                <label>Activities</label>
-                <textarea id="projectActivities" rows="3"></textarea>
-              </div>
-            </div>
-
-            <div class="row-2">
-              <div class="field">
-                <label>Stakeholders</label>
-                <textarea id="stakeholderGroups" rows="2"></textarea>
-              </div>
-              <div class="field">
-                <label>Contact (email / phone)</label>
-                <div class="row-2">
-                  <input id="contactEmail" placeholder="email" />
-                  <input id="contactPhone" placeholder="phone" />
-                </div>
-              </div>
-            </div>
-
-            <div class="row-2">
-              <div class="field">
-                <label>Goal</label>
-                <textarea id="projectGoal" rows="2"></textarea>
-              </div>
-              <div class="field">
-                <label>With / without project</label>
-                <div class="row-2">
-                  <textarea id="withProject" rows="2" placeholder="With project"></textarea>
-                  <textarea id="withoutProject" rows="2" placeholder="Without project"></textarea>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="grid-2">
-          <div class="panel">
-            <div class="panel-title-row">
-              <h3>Timeline & discounting</h3>
-              <div class="muted small">Base-case discount rate drives PV calculations and the comparison table.</div>
-            </div>
-            <div class="panel-body">
-              <div class="row-6">
-                <div class="field"><label>Start year</label><input id="startYear" type="number" /></div>
-                <div class="field"><label>Project start year</label><input id="projectStartYear" type="number" /></div>
-                <div class="field"><label>Years</label><input id="years" type="number" min="1" step="1" /></div>
-                <div class="field"><label>Discount (base, %)</label><input id="discBase" type="number" step="0.1" /></div>
-                <div class="field"><label>Discount (low, %)</label><input id="discLow" type="number" step="0.1" /></div>
-                <div class="field"><label>Discount (high, %)</label><input id="discHigh" type="number" step="0.1" /></div>
-              </div>
-
-              <div class="row-6">
-                <div class="field"><label>MIRR finance rate (%)</label><input id="mirrFinance" type="number" step="0.1" /></div>
-                <div class="field"><label>MIRR reinvest rate (%)</label><input id="mirrReinvest" type="number" step="0.1" /></div>
-                <div class="field"><label>System type</label>
-                  <select id="systemType">
-                    <option value="single">Single</option>
-                    <option value="mixed">Mixed</option>
-                    <option value="wholefarm">Whole farm</option>
+                <div class="field">
+                  <label for="selScale">View scale</label>
+                  <select id="selScale">
+                    <option value="per_ha">Per hectare</option>
+                    <option value="ha_100">100 hectares</option>
+                    <option value="ha_3300">3300 hectares</option>
                   </select>
+                  <div class="help">This scales results from per hectare to whole-farm totals.</div>
                 </div>
-                <div class="field field-wide"><label>Output assumptions</label><input id="outputAssumptions" /></div>
-              </div>
 
-              <div class="spacer"></div>
-
-              <div class="panel slim">
-                <div class="panel-title-row">
-                  <h4>Discount schedule</h4>
-                  <div class="muted small">Optional schedule (low/base/high) by period.</div>
+                <div class="field">
+                  <label for="selFilter">Quick filter</label>
+                  <select id="selFilter">
+                    <option value="all">Show all treatments</option>
+                    <option value="top_npv">Top 5 by net present value</option>
+                    <option value="top_bcr">Top 5 by benefit to cost ratio</option>
+                    <option value="improve_only">Show only improvements versus control</option>
+                  </select>
+                  <div class="help">This filters the leaderboard and the comparison table without changing calculations.</div>
                 </div>
-                <div class="panel-body">
-                  <div class="table-wrap compact">
-                    <table class="table">
-                      <thead>
-                        <tr>
-                          <th>Period</th>
-                          <th>Low (%)</th>
-                          <th>Base (%)</th>
-                          <th>High (%)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>2025–2034</td>
-                          <td><input class="mini" data-disc-period="0" data-scenario="low" /></td>
-                          <td><input class="mini" data-disc-period="0" data-scenario="base" /></td>
-                          <td><input class="mini" data-disc-period="0" data-scenario="high" /></td>
-                        </tr>
-                        <tr>
-                          <td>2035–2044</td>
-                          <td><input class="mini" data-disc-period="1" data-scenario="low" /></td>
-                          <td><input class="mini" data-disc-period="1" data-scenario="base" /></td>
-                          <td><input class="mini" data-disc-period="1" data-scenario="high" /></td>
-                        </tr>
-                        <tr>
-                          <td>2045–2054</td>
-                          <td><input class="mini" data-disc-period="2" data-scenario="low" /></td>
-                          <td><input class="mini" data-disc-period="2" data-scenario="base" /></td>
-                          <td><input class="mini" data-disc-period="2" data-scenario="high" /></td>
-                        </tr>
-                        <tr>
-                          <td>2055–2064</td>
-                          <td><input class="mini" data-disc-period="3" data-scenario="low" /></td>
-                          <td><input class="mini" data-disc-period="3" data-scenario="base" /></td>
-                          <td><input class="mini" data-disc-period="3" data-scenario="high" /></td>
-                        </tr>
-                        <tr>
-                          <td>2065–2074</td>
-                          <td><input class="mini" data-disc-period="4" data-scenario="low" /></td>
-                          <td><input class="mini" data-disc-period="4" data-scenario="base" /></td>
-                          <td><input class="mini" data-disc-period="4" data-scenario="high" /></td>
-                        </tr>
-                      </tbody>
-                    </table>
+
+                <div class="field">
+                  <label>Current snapshot</label>
+                  <div class="mini-kpis">
+                    <div class="mini-kpi">
+                      <div class="mini-kpi-label">Treatments</div>
+                      <div class="mini-kpi-value" id="kpiTreatments">–</div>
+                    </div>
+                    <div class="mini-kpi">
+                      <div class="mini-kpi-label">Replicates</div>
+                      <div class="mini-kpi-value" id="kpiReplicates">–</div>
+                    </div>
+                    <div class="mini-kpi">
+                      <div class="mini-kpi-label">Plots</div>
+                      <div class="mini-kpi-value" id="kpiPlots">–</div>
+                    </div>
                   </div>
-                  <div class="help">These schedule inputs are stored; the base case rate still drives the Results tab unless your JS uses the schedule in scenarios.</div>
+                  <div class="help" id="kpiNote">Import your full trial dataset to activate analysis.</div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="panel">
-            <div class="panel-title-row">
-              <h3>Adoption & risk</h3>
-              <div class="muted small">Used in base case and simulations.</div>
+          <div class="card">
+            <div class="card-header">
+              <h2>What this means</h2>
             </div>
-            <div class="panel-body">
-              <div class="row-6">
-                <div class="field"><label>Adoption (base)</label><input id="adoptBase" type="number" step="0.01" min="0" max="1" /></div>
-                <div class="field"><label>Adoption (low)</label><input id="adoptLow" type="number" step="0.01" min="0" max="1" /></div>
-                <div class="field"><label>Adoption (high)</label><input id="adoptHigh" type="number" step="0.01" min="0" max="1" /></div>
-
-                <div class="field"><label>Risk (base)</label><input id="riskBase" type="number" step="0.01" min="0" max="1" /></div>
-                <div class="field"><label>Risk (low)</label><input id="riskLow" type="number" step="0.01" min="0" max="1" /></div>
-                <div class="field"><label>Risk (high)</label><input id="riskHigh" type="number" step="0.01" min="0" max="1" /></div>
-              </div>
-
-              <div class="spacer"></div>
-
-              <div class="panel slim">
-                <div class="panel-title-row">
-                  <h4>Risk components</h4>
-                  <div class="muted small">Optional breakdown (kept for documentation and future extensions).</div>
-                </div>
-                <div class="panel-body">
-                  <div class="row-6">
-                    <div class="field"><label>Technical</label><input id="rTech" type="number" step="0.01" /></div>
-                    <div class="field"><label>Non-cooperation</label><input id="rNonCoop" type="number" step="0.01" /></div>
-                    <div class="field"><label>Socio</label><input id="rSocio" type="number" step="0.01" /></div>
-                    <div class="field"><label>Financial</label><input id="rFin" type="number" step="0.01" /></div>
-                    <div class="field"><label>Management</label><input id="rMan" type="number" step="0.01" /></div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="spacer"></div>
-
-              <div class="actions">
-                <button class="btn primary" data-tab-jump="results" type="button">Update and view Results</button>
+            <div class="card-body">
+              <div id="whatThisMeans" class="prose">
+                Import your dataset, validate it, and commit it to see a plain-language interpretation here.
               </div>
             </div>
-          </div>
-        </section>
-      </section>
-
-      <!-- =========================
-           OUTPUTS
-           ========================= -->
-      <section class="tab-panel" data-tab-panel="outputs" id="tab-outputs" hidden aria-hidden="true">
-        <div class="panel-head">
-          <div>
-            <h2>Outputs</h2>
-            <p class="muted">Define output metrics (e.g., yield) and the $ value per unit used to monetise deltas.</p>
-          </div>
-          <div class="panel-head-actions">
-            <button class="btn primary" id="addOutputBtn" type="button">Add output</button>
-            <button class="btn ghost" data-tab-jump="results" type="button">Go to Results</button>
           </div>
         </div>
 
-        <section class="panel">
-          <div class="panel-body">
+        <div class="card">
+          <div class="card-header">
+            <h2>Leaderboard</h2>
+            <div class="card-actions">
+              <button class="btn ghost" id="copyLeaderboardCsv">Copy leaderboard as comma separated text</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="table-wrap" id="leaderboardWrap" aria-label="Leaderboard table">
+              <div class="empty" id="leaderboardEmpty">No committed data yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Comparison to control</h2>
+            <div class="card-actions">
+              <button class="btn ghost" id="copyComparisonCsv">Copy table as comma separated text</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="table-wrap wide" id="comparisonWrap" aria-label="Comparison to control table">
+              <div class="empty" id="comparisonEmpty">No committed data yet.</div>
+            </div>
+
+            <details class="details">
+              <summary>How costs are handled in this tool</summary>
+              <div class="details-body">
+                <p>
+                  The dataset contains a raw amendment input cost per hectare and a raw total cost per hectare. If the raw amendment input cost is greater than 1000, the tool treats it as being stored at about one hundred times scale and divides it by one hundred. It then reconstructs total cost per hectare by replacing the raw amendment input cost with the adjusted amendment input cost, leaving all other components unchanged. A dedicated data checks panel reports where this adjustment was applied.
+                </p>
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <!-- IMPORT -->
+      <section class="tab-panel" id="tab-import" data-tab-panel="import" aria-hidden="true" hidden>
+        <div class="page-head">
+          <h1>Import data</h1>
+          <p class="lead">
+            Upload or paste the trial dataset and the data dictionary. Validate first, then commit. Nothing updates until you commit.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <h2>Step 1: dataset</h2>
+            </div>
+            <div class="card-body">
+              <div class="stack">
+                <div class="field">
+                  <label for="fileDataset">Upload dataset (tab separated or comma separated)</label>
+                  <input id="fileDataset" type="file" accept=".tsv,.csv,.txt,text/tab-separated-values,text/csv,text/plain" />
+                  <div class="help">Use the full dataset. The tool imports every column and every row.</div>
+                </div>
+
+                <div class="field">
+                  <label for="pasteDataset">Or paste dataset (tab delimited)</label>
+                  <textarea id="pasteDataset" rows="10" spellcheck="false" placeholder="Paste tab-delimited data here"></textarea>
+                  <div class="help">If your text includes a data dictionary section then a data section, paste the whole text. The tool will detect the data block.</div>
+                </div>
+
+                <div class="row-actions">
+                  <button class="btn" id="parseDataset">Validate dataset</button>
+                  <button class="btn ghost" id="clearDataset">Clear</button>
+                </div>
+
+                <div class="callout" id="datasetStatus" role="status" aria-live="polite">
+                  Waiting for dataset.
+                </div>
+
+                <div class="field">
+                  <label>Key fields mapping</label>
+                  <div class="mapping-grid">
+                    <div class="map-row">
+                      <div class="map-label">Treatment name</div>
+                      <select id="mapTreatmentName"></select>
+                    </div>
+                    <div class="map-row">
+                      <div class="map-label">Treatment identifier</div>
+                      <select id="mapTreatmentId"></select>
+                    </div>
+                    <div class="map-row">
+                      <div class="map-label">Replicate identifier</div>
+                      <select id="mapReplicateId"></select>
+                    </div>
+                    <div class="map-row">
+                      <div class="map-label">Yield (tonnes per hectare)</div>
+                      <select id="mapYield"></select>
+                    </div>
+                    <div class="map-row">
+                      <div class="map-label">Total cost per hectare (raw)</div>
+                      <select id="mapTotalCostRaw"></select>
+                    </div>
+                    <div class="map-row">
+                      <div class="map-label">Amendment input cost per hectare (raw)</div>
+                      <select id="mapAmendCostRaw"></select>
+                    </div>
+                  </div>
+                  <div class="help">The tool auto-suggests mappings. Change them if your future dataset uses different column names.</div>
+                </div>
+
+                <div class="row-actions">
+                  <button class="btn" id="commitDataset">Commit dataset</button>
+                </div>
+
+                <div class="callout warning" id="commitNote">
+                  Committing replaces the active dataset. Use export options to keep a copy of what you analysed.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>Step 2: data dictionary</h2>
+            </div>
+            <div class="card-body">
+              <div class="stack">
+                <div class="field">
+                  <label for="fileDictionary">Upload data dictionary (comma separated)</label>
+                  <input id="fileDictionary" type="file" accept=".csv,text/csv,text/plain" />
+                  <div class="help">The dictionary is used for field labels, validation messages, and tooltips.</div>
+                </div>
+
+                <div class="field">
+                  <label for="pasteDictionary">Or paste data dictionary (comma separated)</label>
+                  <textarea id="pasteDictionary" rows="10" spellcheck="false" placeholder="Paste dictionary CSV here"></textarea>
+                </div>
+
+                <div class="row-actions">
+                  <button class="btn" id="parseDictionary">Load dictionary</button>
+                  <button class="btn ghost" id="clearDictionary">Clear</button>
+                </div>
+
+                <div class="callout" id="dictionaryStatus" role="status" aria-live="polite">
+                  Dictionary not loaded.
+                </div>
+
+                <div class="card subtle">
+                  <div class="card-header">
+                    <h3>Preview</h3>
+                  </div>
+                  <div class="card-body">
+                    <div class="small muted" id="dictionaryPreview">Load a dictionary to see a preview of labels and definitions.</div>
+                    <div id="dictionaryPreviewTable" class="table-wrap"></div>
+                  </div>
+                </div>
+
+                <details class="details">
+                  <summary>What the dictionary is used for</summary>
+                  <div class="details-body">
+                    <p>
+                      When available, the dictionary drives field labelling, validation wording, and tooltips, so that you do not need to remember what each column means. If you upload a similar dataset in the future, the tool can reuse the same dictionary, or you can upload an updated dictionary.
+                    </p>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Preview and validation report</h2>
+            <div class="card-actions">
+              <button class="btn ghost" id="copyValidation">Copy validation report</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="validationReport" class="prose">Validate a dataset to see the report.</div>
+            <div class="table-wrap" id="previewWrap">
+              <div class="empty" id="previewEmpty">No preview yet.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONFIGURATION -->
+      <section class="tab-panel" id="tab-configuration" data-tab-panel="configuration" aria-hidden="true" hidden>
+        <div class="page-head">
+          <h1>Configuration</h1>
+          <p class="lead">
+            Adjust scenario lists, yield persistence, and treatment cost recurrence. This affects discounted results and rankings, not the raw trial treatment means.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <h2>Assumptions</h2>
+              <div class="card-actions">
+                <button class="btn" id="applyConfig">Apply configuration</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="cfgHorizon">Time horizon (years)</label>
+                  <input id="cfgHorizon" type="number" min="1" step="1" value="10" />
+                  <div class="help">If the horizon exceeds a persistence pattern length, the tool repeats the last factor and flags it in diagnostics.</div>
+                </div>
+
+                <div class="field">
+                  <label>Discount rates list</label>
+                  <div class="chips">
+                    <div id="rateChips" class="chip-row"></div>
+                    <div class="chip-add">
+                      <input id="rateAdd" type="number" step="0.001" placeholder="Add rate, for example 0.07" />
+                      <button class="btn small" id="rateAddBtn">Add</button>
+                    </div>
+                  </div>
+                  <div class="help">Rates are expressed as decimals, for example 0.07 is seven per cent.</div>
+                </div>
+
+                <div class="field">
+                  <label>Grain price list</label>
+                  <div class="chips">
+                    <div id="priceChips" class="chip-row"></div>
+                    <div class="chip-add">
+                      <input id="priceAdd" type="number" step="1" placeholder="Add price, for example 450" />
+                      <button class="btn small" id="priceAddBtn">Add</button>
+                    </div>
+                  </div>
+                  <div class="help">Prices are in Australian dollars per tonne.</div>
+                </div>
+
+                <div class="field">
+                  <label>Yield persistence patterns</label>
+                  <div id="persistenceList" class="stack"></div>
+                  <div class="subcard">
+                    <div class="subcard-title">Add a new pattern</div>
+                    <div class="subcard-body">
+                      <div class="row-3">
+                        <div class="field">
+                          <label for="persName">Name</label>
+                          <input id="persName" placeholder="for example 5yr_decay" />
+                        </div>
+                        <div class="field">
+                          <label for="persVec">Factors</label>
+                          <input id="persVec" placeholder="for example 1,0.8,0.6,0.4,0.2,0,0,0,0,0" />
+                        </div>
+                        <div class="field">
+                          <label>&nbsp;</label>
+                          <button class="btn" id="persAddBtn">Add pattern</button>
+                        </div>
+                      </div>
+                      <div class="help">Factors are applied year by year to incremental yield. Use commas. The first year factor is typically one.</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label>Current configuration at a glance</label>
+                  <div class="glance" id="configGlance">No committed data yet.</div>
+                  <div class="row-actions">
+                    <button class="btn ghost" id="viewResultsSummary">View results summary</button>
+                    <button class="btn ghost" id="saveScenario">Save scenario</button>
+                    <button class="btn ghost" id="loadScenario">Load scenario</button>
+                  </div>
+                  <div class="help">Scenarios are stored locally in your browser as JSON. They do not leave your computer.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>Treatment settings</h2>
+            </div>
+            <div class="card-body">
+              <div class="help">
+                Cost recurrence controls how incremental costs are treated in present value calculations. One-off applies the incremental cost upfront. Annual repeats the incremental cost each year. Custom applies a user-provided path.
+              </div>
+              <div class="table-wrap" id="treatmentConfigWrap">
+                <div class="empty" id="treatmentConfigEmpty">Commit a dataset to configure treatments.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI -->
+      <section class="tab-panel" id="tab-ai" data-tab-panel="ai" aria-hidden="true" hidden>
+        <div class="page-head">
+          <h1>AI briefing</h1>
+          <p class="lead">
+            This generates a copy-ready prompt for a farmer-facing or policy-facing brief, using only the computed results and scenario settings in the tool.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <h2>Briefing prompt</h2>
+              <div class="card-actions">
+                <button class="btn" id="copyBriefing">Copy briefing prompt</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <textarea id="briefingText" rows="18" spellcheck="false"></textarea>
+              <div class="help">The text avoids abbreviations and avoids technical jargon. It is designed to be pasted into another system.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>Results JSON</h2>
+              <div class="card-actions">
+                <button class="btn" id="copyResultsJson">Copy results JSON</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <textarea id="resultsJson" rows="18" spellcheck="false"></textarea>
+              <div class="help">This JSON contains scenario settings, treatment results, rankings, and differences versus the control.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DIAGNOSTICS -->
+      <section class="tab-panel" id="tab-diagnostics" data-tab-panel="diagnostics" aria-hidden="true" hidden>
+        <div class="page-head">
+          <h1>Diagnostics</h1>
+          <p class="lead">
+            These checks help you see missing controls within replicates, missing or invalid values, cost scaling triggers, and any computation safeguards applied.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <h2>Diagnostics summary</h2>
+              <div class="card-actions">
+                <button class="btn ghost" id="copyDiagnostics">Copy diagnostics text</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="diagnosticsText" class="prose">No committed data yet.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>Data checks: cost scaling</h2>
+            </div>
+            <div class="card-body">
+              <div class="help">This lists which amendments triggered the amendment input cost scaling rule, with counts and summary statistics.</div>
+              <div class="table-wrap" id="scalingChecksWrap">
+                <div class="empty" id="scalingChecksEmpty">No committed data yet.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Missing values by column</h2>
+          </div>
+          <div class="card-body">
+            <div class="table-wrap" id="missingByColumnWrap">
+              <div class="empty" id="missingByColumnEmpty">No committed data yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Replicates without controls</h2>
+          </div>
+          <div class="card-body">
+            <div class="table-wrap" id="noControlWrap">
+              <div class="empty" id="noControlEmpty">No committed data yet.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PROJECT (legacy, kept for existing architecture) -->
+      <section class="tab-panel" id="tab-project" data-tab-panel="project" aria-hidden="true" hidden>
+        <div class="page-head">
+          <h1>Project</h1>
+          <p class="lead">Project metadata is kept for reporting and export. It does not change the trial-based comparison calculations.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Project details</h2>
+            <div class="card-actions">
+              <button class="btn ghost" id="saveProject" title="Download project settings as JSON">Download project JSON</button>
+              <button class="btn ghost" id="loadProject" title="Load project settings from JSON">Load project JSON</button>
+              <input id="loadFile" type="file" accept=".json,application/json" hidden />
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label for="projectName">Project name</label><input id="projectName" /></div>
+              <div class="field"><label for="projectLead">Project lead</label><input id="projectLead" /></div>
+              <div class="field"><label for="analystNames">Analysts</label><input id="analystNames" /></div>
+              <div class="field"><label for="projectTeam">Team</label><input id="projectTeam" /></div>
+              <div class="field"><label for="organisation">Organisation</label><input id="organisation" /></div>
+              <div class="field"><label for="lastUpdated">Last updated</label><input id="lastUpdated" /></div>
+
+              <div class="field span-2"><label for="projectSummary">Summary</label><textarea id="projectSummary" rows="4"></textarea></div>
+              <div class="field span-2"><label for="projectObjectives">Objectives</label><textarea id="projectObjectives" rows="4"></textarea></div>
+              <div class="field span-2"><label for="projectActivities">Activities</label><textarea id="projectActivities" rows="4"></textarea></div>
+              <div class="field span-2"><label for="stakeholderGroups">Stakeholders</label><textarea id="stakeholderGroups" rows="3"></textarea></div>
+              <div class="field span-2"><label for="projectGoal">Goal</label><textarea id="projectGoal" rows="3"></textarea></div>
+              <div class="field span-2"><label for="withProject">With project</label><textarea id="withProject" rows="3"></textarea></div>
+              <div class="field span-2"><label for="withoutProject">Without project</label><textarea id="withoutProject" rows="3"></textarea></div>
+
+              <div class="field"><label for="contactEmail">Contact email</label><input id="contactEmail" /></div>
+              <div class="field"><label for="contactPhone">Contact phone</label><input id="contactPhone" /></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- OUTPUTS (legacy) -->
+      <section class="tab-panel" id="tab-outputs" data-tab-panel="outputs" aria-hidden="true" hidden>
+        <div class="page-head">
+          <h1>Outputs and values</h1>
+          <p class="lead">This section is kept for the existing tool architecture. The trial-based CBA uses scenario grain prices rather than these fields.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Outputs</h2>
+            <div class="card-actions">
+              <button class="btn" id="addOutput">Add output</button>
+            </div>
+          </div>
+          <div class="card-body">
             <div id="outputsList"></div>
           </div>
-        </section>
+        </div>
       </section>
 
-      <!-- =========================
-           TREATMENTS
-           ========================= -->
-      <section class="tab-panel" data-tab-panel="treatments" id="tab-treatments" hidden aria-hidden="true">
-        <div class="panel-head">
-          <div>
-            <h2>Treatments</h2>
-            <p class="muted">Edit treatment costs and output deltas. Set exactly one control baseline.</p>
-          </div>
-          <div class="panel-head-actions">
-            <button class="btn primary" id="addTreatmentBtn" type="button">Add treatment</button>
-            <button class="btn ghost" data-tab-jump="results" type="button">Go to Results</button>
-          </div>
+      <!-- TREATMENTS (legacy) -->
+      <section class="tab-panel" id="tab-treatments" data-tab-panel="treatments" aria-hidden="true" hidden>
+        <div class="page-head">
+          <h1>Treatments editor</h1>
+          <p class="lead">This editor is retained for compatibility with the existing tool structure. For trial-based analysis, use Import and Configuration tabs.</p>
         </div>
 
-        <section class="panel">
-          <div class="panel-body">
-            <div class="callout">
-              <strong>Control baseline:</strong> Use “Control vs treatment?” to select the single baseline.
-              The Results table pins “Control (baseline)” beside every treatment.
+        <div class="card">
+          <div class="card-header">
+            <h2>Treatments</h2>
+            <div class="card-actions">
+              <button class="btn" id="addTreatment">Add treatment</button>
             </div>
+          </div>
+          <div class="card-body">
             <div id="treatmentsList"></div>
           </div>
-        </section>
+        </div>
       </section>
 
-      <!-- =========================
-           BENEFITS
-           ========================= -->
-      <section class="tab-panel" data-tab-panel="benefits" id="tab-benefits" hidden aria-hidden="true">
-        <div class="panel-head">
-          <div>
-            <h2>Additional benefits</h2>
-            <p class="muted">Optional benefits beyond output deltas (annual or once-off), with adoption/risk linking.</p>
-          </div>
-          <div class="panel-head-actions">
-            <button class="btn primary" id="addBenefitBtn" type="button">Add benefit</button>
-            <button class="btn ghost" data-tab-jump="results" type="button">Go to Results</button>
-          </div>
+      <!-- BENEFITS (legacy) -->
+      <section class="tab-panel" id="tab-benefits" data-tab-panel="benefits" aria-hidden="true" hidden>
+        <div class="page-head">
+          <h1>Additional benefits</h1>
+          <p class="lead">Additional benefits remain available for broader project-level modelling and simulation.</p>
         </div>
 
-        <section class="panel">
-          <div class="panel-body">
+        <div class="card">
+          <div class="card-header">
+            <h2>Benefits list</h2>
+            <div class="card-actions">
+              <button class="btn" id="addBenefit">Add benefit</button>
+            </div>
+          </div>
+          <div class="card-body">
             <div id="benefitsList"></div>
           </div>
-        </section>
+        </div>
       </section>
 
-      <!-- =========================
-           COSTS
-           ========================= -->
-      <section class="tab-panel" data-tab-panel="costs" id="tab-costs" hidden aria-hidden="true">
-        <div class="panel-head">
-          <div>
-            <h2>Other costs</h2>
-            <p class="muted">Project-level costs (annual or capital). Capital can optionally be depreciated for reporting.</p>
-          </div>
-          <div class="panel-head-actions">
-            <button class="btn primary" id="addCostBtn" type="button">Add cost item</button>
-            <button class="btn ghost" data-tab-jump="results" type="button">Go to Results</button>
-          </div>
+      <!-- COSTS (legacy) -->
+      <section class="tab-panel" id="tab-costs" data-tab-panel="costs" aria-hidden="true" hidden>
+        <div class="page-head">
+          <h1>Other costs</h1>
+          <p class="lead">Other costs remain available for broader project-level modelling and simulation.</p>
         </div>
 
-        <section class="panel">
-          <div class="panel-body">
+        <div class="card">
+          <div class="card-header">
+            <h2>Costs list</h2>
+            <div class="card-actions">
+              <button class="btn" id="addCost">Add cost</button>
+            </div>
+          </div>
+          <div class="card-body">
             <div id="costsList"></div>
           </div>
-        </section>
+        </div>
       </section>
 
-      <!-- =========================
-           SIMULATIONS
-           ========================= -->
-      <section class="tab-panel" data-tab-panel="simulations" id="tab-simulations" hidden aria-hidden="true">
-        <div class="panel-head">
-          <div>
-            <h2>Simulations</h2>
-            <p class="muted">Monte Carlo simulation to explore uncertainty around discount rate, adoption and risk, plus optional shocks.</p>
-          </div>
+      <!-- SIMULATION (legacy) -->
+      <section class="tab-panel" id="tab-simulation" data-tab-panel="simulation" aria-hidden="true" hidden>
+        <div class="page-head">
+          <h1>Simulation</h1>
+          <p class="lead">Monte Carlo simulation remains available for broader project-level modelling. Trial-based sensitivity analysis is shown in Results.</p>
         </div>
 
-        <section class="panel">
-          <div class="panel-body">
-            <div class="row-6">
-              <div class="field">
-                <label>Runs (N)</label>
-                <input id="simN" type="number" min="100" step="100" />
-              </div>
-              <div class="field">
-                <label>Target BCR</label>
-                <input id="targetBCR" type="number" step="0.1" />
-              </div>
-              <div class="field">
-                <label>BCR mode</label>
+        <div class="card">
+          <div class="card-header">
+            <h2>Simulation controls</h2>
+            <div class="card-actions">
+              <button class="btn" id="runSim">Run simulation</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label for="simN">Runs</label><input id="simN" type="number" min="100" step="100" /></div>
+              <div class="field"><label for="targetBCR">Target ratio</label><input id="targetBCR" type="number" step="0.01" /></div>
+              <div class="field"><label for="bcrMode">Ratio mode</label>
                 <select id="bcrMode">
                   <option value="all">All costs</option>
                   <option value="constrained">Constrained costs</option>
                 </select>
               </div>
-              <div class="field">
-                <label>Random seed (optional)</label>
-                <input id="randSeed" placeholder="leave blank for random" />
+              <div class="field"><label for="randSeed">Seed (optional)</label><input id="randSeed" type="number" step="1" /></div>
+
+              <div class="field"><label for="simVarPct">Variation (per cent)</label><input id="simVarPct" type="number" min="0" step="1" /></div>
+              <div class="field"><label for="simVaryOutputs">Vary outputs?</label>
+                <select id="simVaryOutputs"><option value="true">Yes</option><option value="false">No</option></select>
               </div>
-              <div class="field">
-                <label>Variation (±%)</label>
-                <input id="simVarPct" type="number" min="0" step="1" />
+              <div class="field"><label for="simVaryTreatCosts">Vary treatment costs?</label>
+                <select id="simVaryTreatCosts"><option value="true">Yes</option><option value="false">No</option></select>
               </div>
-              <div class="field">
-                <label>&nbsp;</label>
-                <button id="runSimBtn" class="btn primary" type="button">Run simulation</button>
-                <div class="help" id="simStatus"></div>
+              <div class="field"><label for="simVaryInputCosts">Vary other costs?</label>
+                <select id="simVaryInputCosts"><option value="true">Yes</option><option value="false">No</option></select>
               </div>
             </div>
 
-            <div class="row-6">
-              <div class="field">
-                <label>Vary outputs?</label>
-                <select id="simVaryOutputs">
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>Vary treatment costs?</label>
-                <select id="simVaryTreatCosts">
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>Vary other costs?</label>
-                <select id="simVaryInputCosts">
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="spacer"></div>
+            <div class="callout" id="simStatus">Ready.</div>
 
             <div class="grid-2">
-              <div class="panel slim">
-                <div class="panel-title-row">
-                  <h3>NPV distribution</h3>
-                  <div class="muted small">Summary statistics across runs.</div>
-                </div>
-                <div class="panel-body">
-                  <div class="inline-stats">
-                    <div class="stat"><div class="muted small">Min</div><div id="simNpvMin" class="stat-val">$0</div></div>
-                    <div class="stat"><div class="muted small">Max</div><div id="simNpvMax" class="stat-val">$0</div></div>
-                    <div class="stat"><div class="muted small">Mean</div><div id="simNpvMean" class="stat-val">$0</div></div>
-                    <div class="stat"><div class="muted small">Median</div><div id="simNpvMedian" class="stat-val">$0</div></div>
-                    <div class="stat"><div class="muted small">P(NPV &gt; 0)</div><div id="simNpvProb" class="stat-val">n/a</div></div>
-                  </div>
-                  <div class="chart-card">
-                    <canvas id="histNpv" width="720" height="260" aria-label="Histogram of NPV"></canvas>
-                  </div>
-                </div>
+              <div class="card subtle">
+                <div class="card-header"><h3>Net present value distribution</h3></div>
+                <div class="card-body"><canvas id="histNpv" width="520" height="220"></canvas></div>
               </div>
-
-              <div class="panel slim">
-                <div class="panel-title-row">
-                  <h3>BCR distribution</h3>
-                  <div class="muted small">Includes probability thresholds.</div>
-                </div>
-                <div class="panel-body">
-                  <div class="inline-stats">
-                    <div class="stat"><div class="muted small">Min</div><div id="simBcrMin" class="stat-val">n/a</div></div>
-                    <div class="stat"><div class="muted small">Max</div><div id="simBcrMax" class="stat-val">n/a</div></div>
-                    <div class="stat"><div class="muted small">Mean</div><div id="simBcrMean" class="stat-val">n/a</div></div>
-                    <div class="stat"><div class="muted small">Median</div><div id="simBcrMedian" class="stat-val">n/a</div></div>
-                    <div class="stat"><div class="muted small">P(BCR &gt; 1)</div><div id="simBcrProb1" class="stat-val">n/a</div></div>
-                    <div class="stat"><div class="muted small">P(BCR &gt; target)</div><div id="simBcrProbTarget" class="stat-val">n/a</div></div>
-                  </div>
-                  <div class="chart-card">
-                    <canvas id="histBcr" width="720" height="260" aria-label="Histogram of BCR"></canvas>
-                  </div>
-                </div>
+              <div class="card subtle">
+                <div class="card-header"><h3>Benefit to cost ratio distribution</h3></div>
+                <div class="card-body"><canvas id="histBcr" width="520" height="220"></canvas></div>
               </div>
             </div>
-
-            <div class="actions">
-              <button class="btn ghost" data-tab-jump="results" type="button">Back to Results</button>
-            </div>
-          </div>
-        </section>
-      </section>
-
-      <!-- =========================
-           AI / COPILOT
-           ========================= -->
-      <section class="tab-panel" data-tab-panel="ai" id="tab-ai" hidden aria-hidden="true">
-        <div class="panel-head">
-          <div>
-            <h2>Copilot / AI prompt</h2>
-            <p class="muted">
-              Generates a non-prescriptive prompt based only on the computed results (no invented numbers). Use it in Copilot or another assistant.
-            </p>
           </div>
         </div>
-
-        <section class="panel">
-          <div class="panel-body">
-            <div class="actions">
-              <button class="btn primary" id="copyAIPrompt" type="button">Copy prompt</button>
-              <button class="btn ghost" data-tab-jump="results" type="button">Go to Results</button>
-            </div>
-
-            <div class="field">
-              <label>Prompt (editable)</label>
-              <textarea id="aiPrompt" rows="22" spellcheck="false"></textarea>
-              <div class="help">Tip: paste into Copilot and ask for a farmer-facing narrative interpretation without decision rules.</div>
-            </div>
-          </div>
-        </section>
       </section>
+
+      <footer class="app-footer">
+        <div class="muted small">
+          Built for decision support. This tool explains trade-offs and uncertainty. It does not impose decision rules.
+        </div>
+      </footer>
     </main>
+  </div>
 
-    <footer class="app-footer">
-      <div class="footer-inner">
-        <div class="muted small">
-          <strong>Farming CBA Decision Tool 2</strong> • Newcastle Business School, The University of Newcastle
-        </div>
-        <div class="muted small">
-          This tool is decision support. It does not prescribe choices or impose thresholds.
-        </div>
-      </div>
-    </footer>
+  <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="true"></div>
 
-    <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
-
-    <!-- SheetJS (XLSX) must load before app.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script defer src="app.js"></script>
-
-    <!-- Small glue so Data Import panel can mirror validation panel content, without changing app.js -->
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        // Keep the data tab's validation mirror in sync (best-effort, no dependency on app.js internals).
-        const src = document.getElementById("validationPanel");
-        const dst = document.getElementById("validationPanelDataMirror");
-        if (!src || !dst) return;
-
-        const sync = () => (dst.innerHTML = src.innerHTML);
-        sync();
-
-        const mo = new MutationObserver(sync);
-        mo.observe(src, { childList: true, subtree: true });
-
-        // Ensure Results is the visible landing tab even if JS initialisation changes.
-        // app.js should handle tabs; this is a harmless fallback.
-        const resultsTabBtn = document.querySelector('[data-tab-target="results"]');
-        if (resultsTabBtn && !resultsTabBtn.classList.contains("active")) resultsTabBtn.click();
-      });
-    </script>
-  </body>
+  <script src="app.js"></script>
+</body>
 </html>
