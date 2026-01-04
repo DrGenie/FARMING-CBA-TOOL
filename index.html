@@ -39,22 +39,94 @@
 
     <!-- Tab Navigation -->
     <nav class="tabs-nav" aria-label="Main sections">
-      <button class="tab-btn" data-tab-target="tab-results" id="tabButton-results">Results</button>
       <button class="tab-btn" data-tab-target="tab-overview" id="tabButton-overview">Overview</button>
+      <button class="tab-btn" data-tab-target="tab-results" id="tabButton-results">Results</button>
       <button class="tab-btn" data-tab-target="tab-data" id="tabButton-data">Data</button>
-      <button class="tab-btn" data-tab-target="tab-config-treatments" id="tabButton-configTreatments">Treatments &amp; Control</button>
+      <button class="tab-btn" data-tab-target="tab-config-treatments" id="tabButton-configTreatments">Treatments &amp; control</button>
       <button class="tab-btn" data-tab-target="tab-config-benefits" id="tabButton-configBenefits">Benefits setup</button>
       <button class="tab-btn" data-tab-target="tab-config-costs" id="tabButton-configCosts">Costs setup</button>
       <button class="tab-btn" data-tab-target="tab-figures" id="tabButton-figures">Figures &amp; plots</button>
       <button class="tab-btn" data-tab-target="tab-simulation" id="tabButton-simulation">Simulation &amp; scenarios</button>
+      <button class="tab-btn" data-tab-target="tab-ai" id="tabButton-ai">AI briefing</button>
       <button class="tab-btn" data-tab-target="tab-notes" id="tabButton-notes">Notes &amp; exports</button>
       <button class="tab-btn" data-tab-target="tab-technical" id="tabButton-technical">Technical details</button>
     </nav>
 
     <!-- Main content -->
     <main class="app-main">
-      <!-- RESULTS TAB (DEFAULT) -->
-      <section id="tab-results" class="tab-panel" aria-labelledby="tabButton-results">
+      <!-- OVERVIEW TAB (DEFAULT) -->
+      <section id="tab-overview" class="tab-panel" aria-labelledby="tabButton-overview">
+        <header class="panel-header">
+          <h2>Overview – What this tool does</h2>
+          <p>
+            This decision aid summarises results from a faba beans field trial that tested a range of soil, amendment,
+            and nutrition treatments against a control. It brings together yield, cost, and treatment information to
+            help farmers, advisers, and policy users compare options in clear financial terms.
+          </p>
+        </header>
+
+        <section class="panel-section two-column">
+          <div>
+            <h3>The trial</h3>
+            <p>
+              The trial evaluates multiple soil and nutrient management strategies for faba beans, including deep
+              organic matter, gypsum, carbon-coated minerals, liquid nutrient products, and combinations of these
+              approaches. Treatments were compared with a control that reflects current practice on the trial site.
+            </p>
+            <p>
+              For each treatment and for each replicate plot, the dataset records plot dimensions, plant counts, grain
+              yield, grain quality measures, and detailed cost components such as amendment inputs, labour, machinery,
+              and transport.
+            </p>
+          </div>
+          <div>
+            <h3>What this tool calculates</h3>
+            <ul class="plain-list">
+              <li>Average yield and costs for each treatment based on all replicates in the trial.</li>
+              <li>Total benefits over time from higher yields valued at a user-defined price.</li>
+              <li>Total costs over time, including trial cost items and any additional cost components you enter.</li>
+              <li>Net profit, benefit per dollar spent, return on investment, and rankings.</li>
+              <li>Full comparison of every treatment with the control using the same underlying data.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="panel-section two-column">
+          <div>
+            <h3>How to use this tool</h3>
+            <ol class="plain-list numbered">
+              <li>Review the default trial data on the <strong>Data</strong> tab and confirm that it matches expectations.</li>
+              <li>Use the <strong>Treatments &amp; control</strong> tab to confirm which option is treated as the control and which are included in comparisons.</li>
+              <li>Specify or adjust key assumptions and optional additional benefit items on the <strong>Benefits setup</strong> tab.</li>
+              <li>Enter or refine cost breakdowns on the <strong>Costs setup</strong> tab.</li>
+              <li>Review the control-centred comparison table and leaderboard on the <strong>Results</strong> tab.</li>
+              <li>Test alternative price and discount rate settings under <strong>Simulation &amp; scenarios</strong>.</li>
+              <li>Generate AI-ready policy briefs from the <strong>AI briefing</strong> tab and record key messages under <strong>Notes &amp; exports</strong>.</li>
+            </ol>
+          </div>
+          <div>
+            <h3>Intended users</h3>
+            <p>This tool has been designed for three main groups:</p>
+            <ul class="plain-list">
+              <li><strong>Farmers</strong> who want a clear view of which treatments are likely to provide better returns than current practice.</li>
+              <li><strong>Advisers and agronomists</strong> who support decision making on soil and nutrient management strategies.</li>
+              <li><strong>Policy and extension staff</strong> who require transparent, trial-based evidence on the value of alternative practices.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Session notes</h3>
+          <p>
+            Use this space for general remarks about the project, including questions to discuss with collaborators or
+            observations about data quality, assumptions, or next steps.
+          </p>
+          <textarea id="overviewNotes" class="notes-area" rows="6" placeholder="Type broader project notes here. These are saved in your browser only."></textarea>
+        </section>
+      </section>
+
+      <!-- RESULTS TAB -->
+      <section id="tab-results" class="tab-panel" aria-labelledby="tabButton-results" hidden>
         <header class="panel-header">
           <h2>Results – Comparison with control</h2>
           <p>
@@ -157,77 +229,6 @@
             only.
           </p>
           <textarea id="resultsNotes" class="notes-area" rows="4" placeholder="Write key messages, recommended treatments, or caveats for this scenario."></textarea>
-        </section>
-      </section>
-
-      <!-- OVERVIEW TAB -->
-      <section id="tab-overview" class="tab-panel" aria-labelledby="tabButton-overview" hidden>
-        <header class="panel-header">
-          <h2>Overview – What this tool does</h2>
-          <p>
-            This decision aid summarises results from a faba beans field trial that tested a range of soil, amendment,
-            and nutrition treatments against a control. It brings together yield, cost, and treatment information to
-            help farmers, advisers, and policy users compare options in clear financial terms.
-          </p>
-        </header>
-
-        <section class="panel-section two-column">
-          <div>
-            <h3>The trial</h3>
-            <p>
-              The trial evaluates multiple soil and nutrient management strategies for faba beans, including deep
-              organic matter, gypsum, carbon-coated minerals, liquid nutrient products, and combinations of these
-              approaches. Treatments were compared with a control that reflects current practice on the trial site.
-            </p>
-            <p>
-              For each treatment and for each replicate plot, the dataset records plot dimensions, plant counts, grain
-              yield, grain quality measures, and detailed cost components such as amendment inputs, labour, machinery,
-              and transport.
-            </p>
-          </div>
-          <div>
-            <h3>What this tool calculates</h3>
-            <ul class="plain-list">
-              <li>Average yield and costs for each treatment based on all replicates in the trial.</li>
-              <li>Total benefits over time from higher yields valued at a user-defined price.</li>
-              <li>Total costs over time, including trial cost items and any additional cost components you enter.</li>
-              <li>Net profit, benefit per dollar spent, return on investment, and rankings.</li>
-              <li>Full comparison of every treatment with the control using the same underlying data.</li>
-            </ul>
-          </div>
-        </section>
-
-        <section class="panel-section two-column">
-          <div>
-            <h3>How to use this tool</h3>
-            <ol class="plain-list numbered">
-              <li>Review the default trial data on the <strong>Data</strong> tab and confirm that it matches expectations.</li>
-              <li>Use the <strong>Treatments &amp; control</strong> tab to confirm which option is treated as the control and which are included in comparisons.</li>
-              <li>Specify or adjust key assumptions (prices, discount rates, persistence) and optional additional benefit items on the <strong>Benefits setup</strong> tab.</li>
-              <li>Enter or refine cost breakdowns on the <strong>Costs setup</strong> tab, including seed, labour, machinery, chemicals, and other cost components.</li>
-              <li>Return to the <strong>Results</strong> tab to review the control-centred comparison table and leaderboard.</li>
-              <li>Use the <strong>Simulation &amp; scenarios</strong> tab to test alternative price and discount rate settings and see how rankings change.</li>
-              <li>Capture key conclusions and caveats on the <strong>Notes &amp; exports</strong> tab.</li>
-            </ol>
-          </div>
-          <div>
-            <h3>Intended users</h3>
-            <p>This tool has been designed for three main groups:</p>
-            <ul class="plain-list">
-              <li><strong>Farmers</strong> who want a clear view of which treatments are likely to provide better returns than current practice.</li>
-              <li><strong>Advisers and agronomists</strong> who support decision making on soil and nutrient management strategies.</li>
-              <li><strong>Policy and extension staff</strong> who require transparent, trial-based evidence on the value of alternative practices.</li>
-            </ul>
-          </div>
-        </section>
-
-        <section class="panel-section">
-          <h3>Session notes</h3>
-          <p>
-            Use this space for general remarks about the project, including questions to discuss with collaborators or
-            observations about data quality, assumptions, or next steps.
-          </p>
-          <textarea id="overviewNotes" class="notes-area" rows="6" placeholder="Type broader project notes here. These are saved in your browser only."></textarea>
         </section>
       </section>
 
@@ -647,6 +648,77 @@
         <section class="panel-section">
           <h3>Notes for scenario analysis</h3>
           <textarea id="simulationNotes" class="notes-area" rows="4" placeholder="Record assumptions and interpretation of scenario results here."></textarea>
+        </section>
+      </section>
+
+      <!-- AI BRIEFING TAB -->
+      <section id="tab-ai" class="tab-panel" aria-labelledby="tabButton-ai" hidden>
+        <header class="panel-header">
+          <h2>AI briefing – Policy report generator</h2>
+          <p>
+            This page prepares a structured prompt that you can paste into Microsoft Copilot or ChatGPT to generate a
+            detailed 3–5 page policy style report for farmers, advisers, and policy makers. The prompt includes
+            self-contained tables based on the current results and scenarios.
+          </p>
+        </header>
+
+        <section class="panel-section two-column">
+          <div>
+            <h3>Step 1 – Open Microsoft Copilot</h3>
+            <p>
+              Click the button below to open Microsoft Copilot in a new browser tab. Once it has opened, return here,
+              generate the prompt, copy it, and paste it into Copilot.
+            </p>
+            <button type="button" id="openCopilotBtn" class="btn-primary">
+              Open Microsoft Copilot in new tab
+            </button>
+            <p class="helper-text">
+              If your organisation uses a different Copilot entry point, you can open it manually and still paste the
+              prompt prepared here.
+            </p>
+          </div>
+          <div>
+            <h3>Step 2 – Generate and copy the AI prompt</h3>
+            <p>
+              Use the buttons below to generate AI-ready prompts. The Copilot prompt is optimised for Microsoft Copilot.
+              The ChatGPT prompt is similar but tailored for this platform.
+            </p>
+            <div class="actions-group">
+              <button type="button" id="generateAiPromptBtn" class="btn-primary">
+                Generate AI briefing prompts
+              </button>
+              <button type="button" id="copyCopilotPromptBtn" class="btn-secondary">
+                Copy prompt for Copilot
+              </button>
+              <button type="button" id="copyChatGptPromptBtn" class="btn-secondary">
+                Copy prompt for ChatGPT
+              </button>
+            </div>
+            <p class="helper-text">
+              Prompts are based on the current results, including the control, all selected treatments, and all active
+              scenarios. If you change assumptions or data, regenerate the prompts before copying.
+            </p>
+          </div>
+        </section>
+
+        <section class="panel-section two-column">
+          <div>
+            <h3>Prompt for Microsoft Copilot</h3>
+            <p>
+              This text is ready to paste into Microsoft Copilot. It requests a 3–5 page policy style report with
+              self-contained tables, clear explanations for non-technical audiences, and interpretation for farmers,
+              advisers, and policy staff.
+            </p>
+            <textarea id="aiCopilotPromptArea" class="notes-area" rows="18" readonly></textarea>
+          </div>
+          <div>
+            <h3>Prompt for ChatGPT</h3>
+            <p>
+              This version is tuned for ChatGPT. It uses the same underlying data but assumes you are working on this
+              platform. You can modify or shorten it if needed.
+            </p>
+            <textarea id="aiChatGptPromptArea" class="notes-area" rows="18" readonly></textarea>
+          </div>
         </section>
       </section>
 
