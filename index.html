@@ -1,482 +1,353 @@
-<!-- index.html -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <title>Farming CBA Decision Tool – Newcastle Business School</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Farming CBA Decision Tool — Newcastle Business School</title>
-  <meta name="description" content="Control-centric farm cost–benefit analysis tool with robust import pipeline, discounted CBA engine, sensitivity analysis, exports, and AI briefing." />
+  <meta name="description" content="Control centred farming cost benefit analysis tool with clear comparison to baseline, sensitivity analysis and policy friendly outputs." />
 
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- Optional: XLSX for workbook export (used only if present) -->
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
   <script defer src="app.js"></script>
 </head>
-
 <body>
-  <noscript>
-    <div class="page">
-      <div class="card">
-        <h2>JavaScript is required</h2>
-        <p>Please enable JavaScript to use this tool.</p>
-      </div>
-    </div>
-  </noscript>
-
-  <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
-
   <div class="app-shell">
     <header class="app-header">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true">NBS</div>
         <div class="brand-text">
           <div class="brand-title">Farming CBA Decision Tool</div>
-          <div class="brand-subtitle">Newcastle Business School · Control-centric results · Excel-first import</div>
+          <div class="brand-subtitle">Newcastle Business School</div>
         </div>
-
-        <div class="header-actions">
-          <div class="small muted" id="headerDatasetBadge">
-            Dataset: <span id="headerDatasetName">Loading default trial dataset…</span>
-          </div>
-          <button class="btn small" id="loadDefaultDataBtn" type="button" title="Reload the default trial dataset (if the default data file exists in the same folder).">
-            Reload default data
-          </button>
+      </div>
+      <div class="header-meta">
+        <div class="dataset-pill">
+          <span class="label">Dataset</span>
+          <span id="headerDatasetName" class="value">None loaded</span>
         </div>
       </div>
     </header>
 
-    <nav class="tabs" role="tablist" aria-label="Tool sections">
-      <button class="tab active" type="button" data-tab="results" role="tab" aria-selected="true">Results</button>
-      <button class="tab" type="button" data-tab="import" role="tab" aria-selected="false">Data Import</button>
-      <button class="tab" type="button" data-tab="config" role="tab" aria-selected="false">Configuration</button>
-      <button class="tab" type="button" data-tab="outputs" role="tab" aria-selected="false">Outputs</button>
-      <button class="tab" type="button" data-tab="treatments" role="tab" aria-selected="false">Treatments</button>
-      <button class="tab" type="button" data-tab="sensitivity" role="tab" aria-selected="false">Sensitivity</button>
-      <button class="tab" type="button" data-tab="ai" role="tab" aria-selected="false">AI Briefing</button>
-      <button class="tab" type="button" data-tab="intro" role="tab" aria-selected="false">Introduction</button>
-      <button class="tab" type="button" data-tab="appendix" role="tab" aria-selected="false" title="Opens the Technical Appendix in a new browser tab.">Technical Appendix</button>
+    <nav class="tabs" role="tablist" aria-label="Main sections">
+      <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="results">
+        Results
+      </button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="import">
+        Data
+      </button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="config">
+        Settings
+      </button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="treatments">
+        Treatments
+      </button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="outputs">
+        Outputs
+      </button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="sensitivity">
+        Sensitivity
+      </button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="ai">
+        AI briefing
+      </button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-tab="appendix">
+        Technical appendix
+      </button>
     </nav>
 
     <main class="tab-panels">
-      <!-- RESULTS -->
-      <section class="tab-panel active" data-tab-panel="results" id="tab-results" role="tabpanel" aria-hidden="false">
+      <!-- RESULTS TAB -->
+      <section
+        class="tab-panel"
+        id="tab-results"
+        data-tab-panel="results"
+        role="tabpanel"
+        aria-labelledby="tab-results-btn"
+      >
         <div class="page">
-          <div class="page-head">
-            <h1>Results</h1>
-            <div class="page-head-actions">
-              <label class="inline-field">
-                <span class="label">Quick filter</span>
+          <div class="card">
+            <h1>Summary of economic results</h1>
+            <p>
+              This page shows how each treatment compares with the control baseline in present value terms.
+              Economic indicators are shown in rows and treatments in columns so that differences are easy to see.
+            </p>
+            <p class="small muted">
+              Values are based on the current analysis settings. You can adjust prices, discount rates and other
+              assumptions in the Settings tab and the tables here will update.
+            </p>
+
+            <div class="results-controls">
+              <div class="field-row">
+                <label for="resultsFilter">Show treatments</label>
                 <select id="resultsFilter">
-                  <option value="all" selected>Show all</option>
+                  <option value="all">All treatments</option>
                   <option value="top5_npv">Top 5 by NPV</option>
                   <option value="top5_bcr">Top 5 by BCR</option>
-                  <option value="improve_only">Show only improvements vs control</option>
+                  <option value="improve_only">Only treatments that improve on the control</option>
                 </select>
-              </label>
-
-              <div class="btn-row">
-                <button class="btn small" id="filterTopNpv" type="button">Top 5 by NPV</button>
-                <button class="btn small" id="filterTopBcr" type="button">Top 5 by BCR</button>
-                <button class="btn small" id="filterImproveOnly" type="button">Improvements only</button>
-                <button class="btn small" id="filterShowAll" type="button">Show all</button>
               </div>
-            </div>
-          </div>
-
-          <div class="grid three">
-            <div class="card">
-              <h2>Leaderboard</h2>
-              <p class="small muted">
-                Ranks treatments by net present value under the current base case assumptions. The control baseline is shown for comparison but not ranked.
-              </p>
-              <div id="resultsLeaderboard"></div>
-            </div>
-
-            <div class="card">
-              <h2>What this means</h2>
-              <p class="small muted">
-                This explanation updates when you import data, change assumptions, or apply a results filter.
-              </p>
-              <div class="prose" id="resultsNarrative"></div>
-            </div>
-
-            <div class="card">
-              <div class="card-head">
-                <h2>Figures</h2>
-                <div class="card-head-actions">
-                  <span class="badge" id="figuresBadge">Base case</span>
-                </div>
-              </div>
-              <p class="small muted">
-                These charts are designed for quick reading. They always use the same numbers as the table below.
-              </p>
-
-              <div class="charts-grid">
-                <div class="chart-card">
-                  <div class="chart-title">Net present value by treatment</div>
-                  <canvas id="chartNpv" height="220" aria-label="NPV bar chart"></canvas>
-                  <div class="chart-note small muted">Higher bars mean larger net gains relative to costs under current assumptions.</div>
-                </div>
-
-                <div class="chart-card">
-                  <div class="chart-title">PV benefits and PV costs</div>
-                  <canvas id="chartPv" height="220" aria-label="PV benefits and costs chart"></canvas>
-                  <div class="chart-note small muted">Benefits come from yield changes valued at grain price. Costs include year-zero capital plus recurring application costs.</div>
-                </div>
-
-                <div class="chart-card">
-                  <div class="chart-title">Yield lift and cost per hectare</div>
-                  <canvas id="chartYieldCost" height="220" aria-label="Yield and cost chart"></canvas>
-                  <div class="chart-note small muted">This is a plain view of what drives outcomes: yield difference and extra cost.</div>
-                </div>
-
-                <div class="chart-card">
-                  <div class="chart-title">Sensitivity snapshot</div>
-                  <canvas id="chartSens" height="220" aria-label="Sensitivity chart"></canvas>
-                  <div class="chart-note small muted">A quick look at how NPV moves when grain price changes, holding other inputs fixed.</div>
+              <div class="field-row quick-filters">
+                <span class="label">Shortcuts</span>
+                <div class="button-row">
+                  <button type="button" id="filterTopNpv" class="btn btn-ghost">Top 5 by NPV</button>
+                  <button type="button" id="filterTopBcr" class="btn btn-ghost">Top 5 by BCR</button>
+                  <button type="button" id="filterImproveOnly" class="btn btn-ghost">Only improvements</button>
+                  <button type="button" id="filterShowAll" class="btn btn-ghost">Show all</button>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="card">
-            <div class="card-head">
-              <h2>Comparison to Control</h2>
-              <div class="card-head-actions">
-                <button class="btn small" type="button" data-action="export-workbook">Export Excel workbook</button>
-                <button class="btn small" type="button" data-action="export-sensitivity-csv">Export sensitivity grid CSV</button>
-                <button class="btn small" type="button" data-action="export-treatment-summary-csv">Export treatment summary CSV</button>
-                <button class="btn small" type="button" data-action="export-cleaned-tsv">Export cleaned dataset TSV</button>
-              </div>
-            </div>
-
+            <h2>Leaderboard</h2>
             <p class="small muted">
-              Rows are indicators. Columns are the control baseline and each treatment, with a paired delta column for clarity.
-              The control column is pinned and labelled “Control (baseline)”.
+              The leaderboard ranks treatments by net present value relative to the control. Higher values indicate
+              stronger economic performance under the current assumptions.
             </p>
+            <div id="resultsLeaderboard"></div>
+          </div>
 
+          <div class="card">
+            <h2>Comparison to control</h2>
+            <p class="small muted">
+              The control is shown in the first numeric column. For each treatment there is a main column with
+              absolute values and a companion column that shows the change compared with the control.
+            </p>
+            <div class="results-exports">
+              <button type="button" class="btn" data-action="export-cleaned-tsv">
+                Download cleaned dataset (TSV)
+              </button>
+              <button type="button" class="btn" data-action="export-treatment-summary-csv">
+                Download treatment summary (CSV)
+              </button>
+              <button type="button" class="btn" data-action="export-workbook">
+                Download Excel workbook
+              </button>
+            </div>
             <div id="comparisonToControl"></div>
           </div>
+
+          <div class="card">
+            <h2>What this means</h2>
+            <p class="small muted">
+              This short interpretation explains in plain language how the treatments compare with the control
+              and which assumptions matter most.
+            </p>
+            <div id="resultsNarrative" class="narrative-block"></div>
+          </div>
         </div>
       </section>
 
-      <!-- DATA IMPORT -->
-      <section class="tab-panel" data-tab-panel="import" id="tab-import" role="tabpanel" aria-hidden="true" hidden>
+      <!-- IMPORT TAB -->
+      <section
+        class="tab-panel"
+        data-tab-panel="import"
+        role="tabpanel"
+      >
         <div class="page">
-          <div class="page-head">
-            <h1>Data Import</h1>
-            <p class="muted">
-              Upload or paste TSV or CSV. If your paste includes a data dictionary section followed by the data section,
-              the tool will attempt to split and parse both.
+          <div class="card">
+            <h1>Data import</h1>
+            <p>
+              You can use this page to load a trial dataset. The tool accepts tab separated or comma separated
+              files, and can also read from a text box.
             </p>
-          </div>
+            <p>
+              The tool looks for treatment, replicate, plot, yield and cost columns, and uses replicate specific
+              control baselines to compute deltas. Missing values are ignored rather than treated as zero.
+            </p>
 
-          <div class="grid two">
-            <div class="card">
-              <div class="card-head">
-                <h2>Upload or paste</h2>
-                <div class="card-head-actions">
-                  <button class="btn small" id="reloadDefaultFromImport" type="button">Reload default data</button>
+            <div class="grid two-col">
+              <div class="field-group">
+                <h2>Upload file</h2>
+                <p class="small muted">
+                  Use this option if your dataset is saved as a file on your computer. The tool does not send
+                  any data to a remote server.
+                </p>
+                <div class="field-row">
+                  <label for="dataFile">Choose TSV, CSV or TXT file</label>
+                  <input id="dataFile" type="file" accept=".tsv,.csv,.txt,.dat,.tab" />
                 </div>
               </div>
 
-              <p class="small muted">Upload the trial data as a TSV, CSV, or TXT file.</p>
-              <div class="field">
-                <label for="dataFile">Data file</label>
-                <input id="dataFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" />
+              <div class="field-group">
+                <h2>Paste data</h2>
+                <p class="small muted">
+                  You can paste tab delimited data here, for example directly from a spreadsheet. If a data
+                  dictionary is present above the data it will be detected automatically.
+                </p>
+                <div class="field-row">
+                  <label for="dataPaste">Paste tab delimited data</label>
+                  <textarea id="dataPaste" rows="10" spellcheck="false"></textarea>
+                </div>
+                <div class="button-row">
+                  <button type="button" id="parseData" data-action="parse-import" class="btn btn-primary">
+                    Parse pasted data
+                  </button>
+                </div>
               </div>
-
-              <div class="divider"></div>
-
-              <h2>Paste</h2>
-              <p class="small muted">Paste TSV or CSV. Quoted fields are supported.</p>
-              <div class="field">
-                <label for="dataPaste">Paste data</label>
-                <textarea id="dataPaste" rows="10" placeholder="Paste TSV or CSV here"></textarea>
-              </div>
-
-              <div class="btn-row">
-                <button class="btn" id="parseData" type="button">Parse and stage</button>
-                <button class="btn primary" id="commitData" type="button">Commit staged dataset</button>
-              </div>
-
-              <p class="small muted" id="importSummary">No dataset parsed yet.</p>
             </div>
 
-            <div class="card">
-              <h2>Data checks</h2>
-              <p class="small muted">
-                This panel lists triggered checks and summaries. Error-level checks must be resolved before commit.
-              </p>
-              <div id="dataChecks"></div>
-
-              <div class="divider"></div>
-
-              <h2>Exports from staged or committed data</h2>
-              <p class="small muted">
-                These exports use the most recently parsed dataset. If you want exports aligned with results, commit first.
-              </p>
-              <div class="btn-row">
-                <button class="btn" type="button" data-action="export-cleaned-tsv">Cleaned dataset TSV</button>
-                <button class="btn" type="button" data-action="export-treatment-summary-csv">Treatment summary CSV</button>
-                <button class="btn" type="button" data-action="export-workbook">Excel workbook</button>
-              </div>
+            <div class="button-row commit-row">
+              <button type="button" id="commitData" data-action="commit-import" class="btn btn-strong">
+                Commit dataset and update results
+              </button>
             </div>
           </div>
 
           <div class="card">
-            <h2>Import notes</h2>
-            <div class="prose">
-              <p>
-                The tool infers key columns such as treatment name, replicate, yield, and cost columns. Control is detected using an
-                explicit control flag column if available, otherwise by matching treatment labels that contain the word control or baseline.
-              </p>
-              <p>
-                Treatment effects are computed using replicate-specific control baselines, so each plot is compared with the control mean in the same replicate before averaging.
-                Missing values and question marks are treated as missing and are excluded from summaries.
-              </p>
+            <h2>Import status</h2>
+            <p class="small muted">
+              This summary describes the variables the tool has found and how many rows are available.
+            </p>
+            <div id="importSummary" class="import-summary">
+              No dataset parsed yet.
             </div>
+          </div>
+
+          <div class="card">
+            <h2>Data checks</h2>
+            <p class="small muted">
+              Checks highlight missing values, negative yields, weak replication and other issues that matter
+              for interpretation. Error level checks need attention before you commit a dataset.
+            </p>
+            <div id="dataChecks"></div>
           </div>
         </div>
       </section>
 
-      <!-- CONFIGURATION -->
-      <section class="tab-panel" data-tab-panel="config" id="tab-config" role="tabpanel" aria-hidden="true" hidden>
+      <!-- CONFIG TAB -->
+      <section
+        class="tab-panel"
+        data-tab-panel="config"
+        role="tabpanel"
+      >
         <div class="page">
-          <div class="page-head">
-            <h1>Configuration</h1>
-            <p class="muted">Set project metadata, time horizon, discounting, grain price, persistence, adoption and risk, and scenarios.</p>
-          </div>
+          <div class="card">
+            <h1>Project details</h1>
+            <p>
+              Use this page to describe the trial, set the analysis horizon and adjust key assumptions such as
+              prices, discount rates, adoption and risk.
+            </p>
 
-          <div class="grid two">
-            <div class="card">
-              <h2>Project details</h2>
-
-              <div class="row-2">
-                <div class="field">
+            <div class="grid two-col">
+              <div class="field-group">
+                <h2>Context</h2>
+                <div class="field-row">
                   <label for="projectName">Project name</label>
                   <input id="projectName" type="text" />
                 </div>
-                <div class="field">
+                <div class="field-row">
                   <label for="organisation">Organisation</label>
                   <input id="organisation" type="text" />
                 </div>
-              </div>
-
-              <div class="row-2">
-                <div class="field">
+                <div class="field-row">
                   <label for="projectLead">Project lead</label>
                   <input id="projectLead" type="text" />
                 </div>
-                <div class="field">
-                  <label for="analystNames">Analysts</label>
+                <div class="field-row">
+                  <label for="analystNames">Analyst team</label>
                   <input id="analystNames" type="text" />
                 </div>
-              </div>
-
-              <div class="row-2">
-                <div class="field">
-                  <label for="projectTeam">Project team</label>
+                <div class="field-row">
+                  <label for="projectTeam">Trial team</label>
                   <input id="projectTeam" type="text" />
                 </div>
-                <div class="field">
+                <div class="field-row">
                   <label for="lastUpdated">Last updated</label>
                   <input id="lastUpdated" type="date" />
                 </div>
-              </div>
-
-              <div class="field">
-                <label for="projectSummary">Summary</label>
-                <textarea id="projectSummary" rows="3"></textarea>
-              </div>
-              <div class="field">
-                <label for="projectObjectives">Objectives</label>
-                <textarea id="projectObjectives" rows="3"></textarea>
-              </div>
-              <div class="field">
-                <label for="projectActivities">Activities</label>
-                <textarea id="projectActivities" rows="3"></textarea>
-              </div>
-              <div class="field">
-                <label for="stakeholderGroups">Stakeholders</label>
-                <textarea id="stakeholderGroups" rows="2"></textarea>
-              </div>
-
-              <div class="row-2">
-                <div class="field">
+                <div class="field-row">
                   <label for="contactEmail">Contact email</label>
                   <input id="contactEmail" type="email" />
                 </div>
-                <div class="field">
+                <div class="field-row">
                   <label for="contactPhone">Contact phone</label>
                   <input id="contactPhone" type="tel" />
                 </div>
               </div>
 
-              <div class="divider"></div>
-
-              <h3>Project framing</h3>
-              <div class="field">
-                <label for="projectGoal">Goal</label>
-                <textarea id="projectGoal" rows="2"></textarea>
-              </div>
-              <div class="field">
-                <label for="withProject">With project</label>
-                <textarea id="withProject" rows="2"></textarea>
-              </div>
-              <div class="field">
-                <label for="withoutProject">Without project</label>
-                <textarea id="withoutProject" rows="2"></textarea>
+              <div class="field-group">
+                <h2>Story of change</h2>
+                <div class="field-row">
+                  <label for="projectSummary">Short summary</label>
+                  <textarea id="projectSummary" rows="3"></textarea>
+                </div>
+                <div class="field-row">
+                  <label for="projectObjectives">Objectives</label>
+                  <textarea id="projectObjectives" rows="3"></textarea>
+                </div>
+                <div class="field-row">
+                  <label for="projectActivities">Key activities</label>
+                  <textarea id="projectActivities" rows="3"></textarea>
+                </div>
+                <div class="field-row">
+                  <label for="stakeholderGroups">Stakeholders</label>
+                  <textarea id="stakeholderGroups" rows="3"></textarea>
+                </div>
+                <div class="field-row">
+                  <label for="projectGoal">Overall goal</label>
+                  <textarea id="projectGoal" rows="3"></textarea>
+                </div>
+                <div class="field-row">
+                  <label for="withProject">With project situation</label>
+                  <textarea id="withProject" rows="3"></textarea>
+                </div>
+                <div class="field-row">
+                  <label for="withoutProject">Without project situation</label>
+                  <textarea id="withoutProject" rows="3"></textarea>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div class="card">
-              <h2>Base case assumptions</h2>
+          <div class="card">
+            <h2>Time horizon and discount rates</h2>
+            <p class="small muted">
+              These settings control how future costs and benefits are discounted. The analysis horizon should
+              reflect how long yield effects and adoption are expected to last.
+            </p>
 
-              <div class="row-3">
-                <div class="field">
-                  <label for="years">Time horizon (years)</label>
+            <div class="grid two-col">
+              <div class="field-group">
+                <div class="field-row">
+                  <label for="years">Analysis horizon in years</label>
                   <input id="years" type="number" min="0" step="1" />
                 </div>
-                <div class="field">
-                  <label for="discBase">Discount rate (base, percent)</label>
+                <div class="field-row">
+                  <label for="startYear">Trial start year</label>
+                  <input id="startYear" type="number" min="1900" step="1" />
+                </div>
+                <div class="field-row">
+                  <label for="projectStartYear">Project start year</label>
+                  <input id="projectStartYear" type="number" min="1900" step="1" />
+                </div>
+                <div class="field-row">
+                  <label for="discBase">Base discount rate (percent per year)</label>
                   <input id="discBase" type="number" step="0.1" />
                 </div>
-                <div class="field">
-                  <label for="grainPrice">Grain price (dollars per tonne)</label>
+                <div class="field-row">
+                  <label for="grainPrice">Grain price per tonne</label>
                   <input id="grainPrice" type="number" step="1" />
                 </div>
-              </div>
-
-              <div class="row-3">
-                <div class="field">
-                  <label for="persistenceYears">Persistence (years)</label>
+                <div class="field-row">
+                  <label for="persistenceYears">Years that yield effects persist</label>
                   <input id="persistenceYears" type="number" min="0" step="1" />
                 </div>
-                <div class="field">
-                  <label for="mirrFinance">MIRR finance rate (percent)</label>
-                  <input id="mirrFinance" type="number" step="0.1" />
-                </div>
-                <div class="field">
-                  <label for="mirrReinvest">MIRR reinvest rate (percent)</label>
-                  <input id="mirrReinvest" type="number" step="0.1" />
-                </div>
               </div>
 
-              <div class="row-2">
-                <div class="field">
-                  <label for="startYear">Start year</label>
-                  <input id="startYear" type="number" step="1" />
-                </div>
-                <div class="field">
-                  <label for="projectStartYear">Project start year</label>
-                  <input id="projectStartYear" type="number" step="1" />
-                </div>
-              </div>
-
-              <div class="divider"></div>
-
-              <h3>Adoption</h3>
-              <div class="row-3">
-                <div class="field">
-                  <label for="adoptBase">Adoption multiplier (base)</label>
-                  <input id="adoptBase" type="number" step="0.01" min="0" max="1" />
-                </div>
-                <div class="field">
-                  <label for="adoptLow">Adoption multiplier (low)</label>
-                  <input id="adoptLow" type="number" step="0.01" min="0" max="1" />
-                </div>
-                <div class="field">
-                  <label for="adoptHigh">Adoption multiplier (high)</label>
-                  <input id="adoptHigh" type="number" step="0.01" min="0" max="1" />
-                </div>
-              </div>
-
-              <div class="divider"></div>
-
-              <h3>Risk</h3>
-              <div class="row-3">
-                <div class="field">
-                  <label for="riskBase">Risk multiplier (base)</label>
-                  <input id="riskBase" type="number" step="0.01" min="0" max="1" />
-                </div>
-                <div class="field">
-                  <label for="riskLow">Risk multiplier (low)</label>
-                  <input id="riskLow" type="number" step="0.01" min="0" max="1" />
-                </div>
-                <div class="field">
-                  <label for="riskHigh">Risk multiplier (high)</label>
-                  <input id="riskHigh" type="number" step="0.01" min="0" max="1" />
-                </div>
-              </div>
-
-              <div class="row-5">
-                <div class="field">
-                  <label for="rTech">Technical</label>
-                  <input id="rTech" type="number" step="0.01" min="0" max="1" />
-                </div>
-                <div class="field">
-                  <label for="rNonCoop">Non co operation</label>
-                  <input id="rNonCoop" type="number" step="0.01" min="0" max="1" />
-                </div>
-                <div class="field">
-                  <label for="rSocio">Social</label>
-                  <input id="rSocio" type="number" step="0.01" min="0" max="1" />
-                </div>
-                <div class="field">
-                  <label for="rFin">Financial</label>
-                  <input id="rFin" type="number" step="0.01" min="0" max="1" />
-                </div>
-                <div class="field">
-                  <label for="rMan">Management</label>
-                  <input id="rMan" type="number" step="0.01" min="0" max="1" />
-                </div>
-              </div>
-
-              <div class="btn-row">
-                <button class="btn" id="calcCombinedRisk" type="button">Calculate combined risk</button>
-                <span class="small muted" id="combinedRiskOut"></span>
-              </div>
-
-              <div class="divider"></div>
-
-              <h3>Scenarios</h3>
-              <div class="row-3">
-                <div class="field">
-                  <label for="scenarioName">Scenario name</label>
-                  <input id="scenarioName" type="text" placeholder="Type a name, or leave blank for automatic naming" />
-                </div>
-                <div class="field">
-                  <label for="scenarioSelect">Saved scenarios</label>
-                  <select id="scenarioSelect">
-                    <option value="">Select a saved scenario</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label>&nbsp;</label>
-                  <div class="btn-row">
-                    <button class="btn" id="saveScenario" type="button">Save</button>
-                    <button class="btn" id="loadScenario" type="button">Load</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="divider"></div>
-
-              <h3>Discount schedule (optional)</h3>
-              <p class="small muted">
-                If you use these schedule inputs, the app will read and update them. If you do not use these, the base discount rate is used.
-              </p>
-              <div class="table-wrap">
+              <div class="field-group">
+                <h3>Discount schedule by decade</h3>
+                <p class="small muted">
+                  You can record low, base and high discount rates for each decade. These values are mainly used
+                  for documentation, while the base rate drives the main calculations.
+                </p>
                 <table class="summary-table">
                   <thead>
                     <tr>
                       <th>Period</th>
-                      <th>Low (percent)</th>
-                      <th>Base (percent)</th>
-                      <th>High (percent)</th>
+                      <th>Low</th>
+                      <th>Base</th>
+                      <th>High</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -512,218 +383,382 @@
                     </tr>
                   </tbody>
                 </table>
+                <div class="field-row">
+                  <label for="mirrFinance">Finance rate for MIRR (percent)</label>
+                  <input id="mirrFinance" type="number" step="0.1" />
+                </div>
+                <div class="field-row">
+                  <label for="mirrReinvest">Reinvestment rate for MIRR (percent)</label>
+                  <input id="mirrReinvest" type="number" step="0.1" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Adoption and risk</h2>
+            <p class="small muted">
+              Adoption captures how widely treatments are taken up on farms. Risk captures the chance that expected
+              benefits are not fully realised.
+            </p>
+
+            <div class="grid two-col">
+              <div class="field-group">
+                <h3>Adoption pattern</h3>
+                <div class="field-row">
+                  <label for="adoptBase">Base adoption multiplier</label>
+                  <input id="adoptBase" type="number" step="0.05" min="0" max="1" />
+                </div>
+                <div class="field-row">
+                  <label for="adoptLow">Low adoption multiplier</label>
+                  <input id="adoptLow" type="number" step="0.05" min="0" max="1" />
+                </div>
+                <div class="field-row">
+                  <label for="adoptHigh">High adoption multiplier</label>
+                  <input id="adoptHigh" type="number" step="0.05" min="0" max="1" />
+                </div>
+                <p class="small muted">
+                  A value of 1 means the full treated area. A value of 0.5 means half of the intended area is
+                  actually treated.
+                </p>
               </div>
 
-              <div class="divider"></div>
+              <div class="field-group">
+                <h3>Risk factors</h3>
+                <div class="field-row">
+                  <label for="riskBase">Base risk multiplier</label>
+                  <input id="riskBase" type="number" step="0.05" min="0" max="1" />
+                </div>
+                <div class="field-row">
+                  <label for="riskLow">Low risk multiplier</label>
+                  <input id="riskLow" type="number" step="0.05" min="0" max="1" />
+                </div>
+                <div class="field-row">
+                  <label for="riskHigh">High risk multiplier</label>
+                  <input id="riskHigh" type="number" step="0.05" min="0" max="1" />
+                </div>
 
-              <h3>Jump to Results</h3>
-              <div class="btn-row">
-                <button class="btn primary" type="button" data-tab-jump="results">Recompute and view Results</button>
+                <div class="field-row">
+                  <label for="rTech">Technical risk</label>
+                  <input id="rTech" type="number" step="0.05" min="0" max="1" />
+                </div>
+                <div class="field-row">
+                  <label for="rNonCoop">Non cooperation risk</label>
+                  <input id="rNonCoop" type="number" step="0.05" min="0" max="1" />
+                </div>
+                <div class="field-row">
+                  <label for="rSocio">Social risk</label>
+                  <input id="rSocio" type="number" step="0.05" min="0" max="1" />
+                </div>
+                <div class="field-row">
+                  <label for="rFin">Financial risk</label>
+                  <input id="rFin" type="number" step="0.05" min="0" max="1" />
+                </div>
+                <div class="field-row">
+                  <label for="rMan">Management risk</label>
+                  <input id="rMan" type="number" step="0.05" min="0" max="1" />
+                </div>
+
+                <div class="field-row">
+                  <button type="button" id="calcCombinedRisk" class="btn btn-ghost">
+                    Combine risk factors into base risk
+                  </button>
+                </div>
+                <p id="combinedRiskOut" class="small muted"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Scenarios</h2>
+            <p class="small muted">
+              You can save and reload complete scenarios. Each scenario stores current settings and model state
+              on this browser only.
+            </p>
+            <div class="grid two-col">
+              <div class="field-group">
+                <div class="field-row">
+                  <label for="scenarioName">Scenario name</label>
+                  <input id="scenarioName" type="text" placeholder="For example, Base farm or High price" />
+                </div>
+                <div class="button-row">
+                  <button type="button" id="saveScenario" class="btn btn-primary">
+                    Save scenario
+                  </button>
+                </div>
+              </div>
+              <div class="field-group">
+                <div class="field-row">
+                  <label for="scenarioSelect">Saved scenarios on this device</label>
+                  <select id="scenarioSelect"></select>
+                </div>
+                <div class="button-row">
+                  <button type="button" id="loadScenario" class="btn">
+                    Load selected scenario
+                  </button>
+                  <button type="button" class="btn btn-ghost" data-tab-jump="results">
+                    Jump to results
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- OUTPUTS -->
-      <section class="tab-panel" data-tab-panel="outputs" id="tab-outputs" role="tabpanel" aria-hidden="true" hidden>
+      <!-- TREATMENTS TAB -->
+      <section
+        class="tab-panel"
+        data-tab-panel="treatments"
+        role="tabpanel"
+      >
         <div class="page">
-          <div class="page-head">
-            <h1>Outputs</h1>
-            <p class="muted">
-              Outputs define the economic value mapping. The tool expects “Grain yield” with unit t per hectare and uses its value as grain price when no separate price input is set.
-            </p>
-          </div>
-
           <div class="card">
-            <div class="card-head">
-              <h2>Outputs list</h2>
-              <div class="card-head-actions">
-                <span class="small muted">Outputs are editable. Treatments will show a delta input per output.</span>
-              </div>
-            </div>
-
-            <div id="outputsList"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TREATMENTS -->
-      <section class="tab-panel" data-tab-panel="treatments" id="tab-treatments" role="tabpanel" aria-hidden="true" hidden>
-        <div class="page">
-          <div class="page-head">
-            <h1>Treatments</h1>
-            <p class="muted">
-              Each treatment stores incremental costs per hectare per application and output deltas per hectare. Recurrence controls how often incremental costs repeat across the horizon.
+            <h1>Treatments and costs</h1>
+            <p>
+              This page lists each treatment, including the control, and shows the yield change and cost items
+              used in the analysis. Values are on a per hectare basis unless stated otherwise.
             </p>
-          </div>
-
-          <div class="card">
-            <div class="card-head">
-              <h2>Treatments list</h2>
-              <div class="card-head-actions">
-                <span class="small muted">Import calibrates deltas and incremental costs from plot data. You can edit values here.</span>
-              </div>
-            </div>
-
+            <p class="small muted">
+              You can adjust areas, cost items, recurrence and notes here. Changes take effect as soon as they are
+              entered.
+            </p>
             <div id="treatmentsList"></div>
           </div>
         </div>
       </section>
 
-      <!-- SENSITIVITY -->
-      <section class="tab-panel" data-tab-panel="sensitivity" id="tab-sensitivity" role="tabpanel" aria-hidden="true" hidden>
+      <!-- OUTPUTS TAB -->
+      <section
+        class="tab-panel"
+        data-tab-panel="outputs"
+        role="tabpanel"
+      >
         <div class="page">
-          <div class="page-head">
-            <h1>Sensitivity</h1>
-            <p class="muted">
-              Runs a grid across grain price, discount rate, persistence of yield effects, and recurrence of costs. Export the grid to analyse in Excel.
-            </p>
-          </div>
-
           <div class="card">
-            <div class="card-head">
-              <h2>Run sensitivity grid</h2>
-              <div class="card-head-actions">
-                <button class="btn primary" type="button" data-action="run-sensitivity">Run sensitivity</button>
-                <button class="btn" type="button" data-action="export-sensitivity-csv">Export grid CSV</button>
-                <button class="btn" type="button" data-action="export-workbook">Export Excel workbook</button>
-              </div>
-            </div>
+            <h1>Outputs and prices</h1>
+            <p>
+              Outputs describe the main physical results of the trial, such as grain yield per hectare. The main
+              output is used together with prices to build economic benefits.
+            </p>
+            <p class="small muted">
+              In most cases there will be one main yield output. You can also record other outputs for
+              documentation, such as protein content or other quality measures.
+            </p>
+            <div id="outputsList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SENSITIVITY TAB -->
+      <section
+        class="tab-panel"
+        data-tab-panel="sensitivity"
+        role="tabpanel"
+      >
+        <div class="page">
+          <div class="card">
+            <h1>Sensitivity analysis</h1>
+            <p>
+              Sensitivity analysis explores how results change as grain prices, discount rates, persistence and
+              recurrence assumptions are varied. This helps users understand how robust conclusions are.
+            </p>
 
             <p class="small muted">
-              The grid size can be large. Export is the recommended way to inspect results in detail.
+              The tool uses a grid of price, discount, persistence and recurrence values. It then recomputes net
+              present value and related indicators for each combination.
             </p>
 
-            <div id="sensitivitySummary" class="prose"></div>
+            <div class="button-row">
+              <button type="button" class="btn btn-primary" data-action="run-sensitivity">
+                Run sensitivity grid
+              </button>
+              <button type="button" class="btn" data-action="export-sensitivity-csv">
+                Download sensitivity grid (CSV)
+              </button>
+            </div>
           </div>
 
           <div class="card">
-            <h2>Sensitivity figure</h2>
-            <p class="small muted">A quick visual summary (base case values plus the most important movements).</p>
-            <div class="chart-card">
-              <div class="chart-title">NPV across grain price for top NPV treatment</div>
-              <canvas id="chartSensTab" height="260" aria-label="Sensitivity chart tab"></canvas>
-              <div class="chart-note small muted">This helps show how strongly results lean on grain price assumptions.</div>
-            </div>
+            <h2>Summary</h2>
+            <p class="small muted">
+              This text explains how wide the scenario grid is and highlights the most extreme outcomes.
+            </p>
+            <div id="sensitivitySummary"></div>
           </div>
         </div>
       </section>
 
-      <!-- AI BRIEFING -->
-      <section class="tab-panel" data-tab-panel="ai" id="tab-ai" role="tabpanel" aria-hidden="true" hidden>
+      <!-- AI BRIEFING TAB -->
+      <section
+        class="tab-panel"
+        data-tab-panel="ai"
+        role="tabpanel"
+      >
         <div class="page">
-          <div class="page-head">
-            <h1>AI Briefing</h1>
-            <p class="muted">
-              Generates a copy-ready prompt that uses computed results only. The briefing uses full sentences and paragraphs only, with no bullet points, no em dash, and no abbreviations.
+          <div class="card">
+            <h1>AI briefing support</h1>
+            <p>
+              This page prepares text and data that can be copied into an AI assistant such as Copilot. The aim
+              is to help farmers and policy makers receive a clear, tailored explanation of the trial results.
             </p>
-          </div>
 
-          <div class="grid two">
-            <div class="card">
-              <div class="card-head">
-                <h2>Briefing text</h2>
-                <div class="card-head-actions">
-                  <button class="btn" type="button" data-action="copy-ai-briefing">Copy briefing text</button>
+            <div class="grid two-col">
+              <div class="field-group">
+                <h2>Plain language prompt</h2>
+                <p class="small muted">
+                  The text below is ready to paste into an AI assistant. It guides the assistant to write a
+                  narrative that uses the actual results without giving a directive decision.
+                </p>
+                <textarea id="aiBriefingText" rows="18" spellcheck="false"></textarea>
+                <div class="button-row">
+                  <button type="button" class="btn btn-primary" data-action="copy-ai-briefing">
+                    Copy briefing text
+                  </button>
                 </div>
               </div>
 
-              <div class="field">
-                <label for="aiBriefingText">Briefing prompt</label>
-                <textarea id="aiBriefingText" rows="16"></textarea>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-head">
+              <div class="field-group">
                 <h2>Results JSON</h2>
-                <div class="card-head-actions">
-                  <button class="btn" type="button" data-action="copy-results-json">Copy results JSON</button>
+                <p class="small muted">
+                  This block contains a compact JSON summary of the project, dataset checks and per treatment
+                  economic results. It can be used by technical users who want to build their own analysis or
+                  visualisation.
+                </p>
+                <textarea id="resultsJson" rows="18" spellcheck="false"></textarea>
+                <div class="button-row">
+                  <button type="button" class="btn" data-action="copy-results-json">
+                    Copy results JSON
+                  </button>
                 </div>
               </div>
-
-              <div class="field">
-                <label for="resultsJson">Results payload</label>
-                <textarea id="resultsJson" rows="16"></textarea>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- INTRODUCTION -->
-      <section class="tab-panel" data-tab-panel="intro" id="tab-intro" role="tabpanel" aria-hidden="true" hidden>
+      <!-- TECHNICAL APPENDIX TAB (ALSO USED FOR NEW WINDOW) -->
+      <section
+        class="tab-panel"
+        id="tab-appendix"
+        data-tab-panel="appendix"
+        role="tabpanel"
+      >
         <div class="page">
-          <div class="page-head">
-            <h1>Introduction</h1>
-            <p class="muted">A quick guide to what the tool does and how to use it with your trial dataset.</p>
+          <div class="card">
+            <h1>Technical appendix</h1>
+            <p>
+              This appendix describes how the tool reads data, constructs yield and cost deltas and calculates
+              economic indicators. It is written for analysts who want to understand or reproduce the methods.
+            </p>
           </div>
 
           <div class="card">
-            <h2>How to use this tool</h2>
-            <div class="prose">
-              <p>
-                This tool compares each treatment against a control baseline using discounted cashflows. Benefits come from yield differences valued at grain price.
-                Costs come from incremental per hectare application costs that can repeat according to the recurrence setting, plus any year zero capital cost.
-              </p>
-              <p>
-                The tool loads a default trial dataset automatically when the default file exists in the same folder. You can still upload or paste your own dataset in the Data Import tab.
-                After import, review the Data Checks panel. If there are error level checks, fix the dataset and parse again. When checks look acceptable, commit the staged dataset.
-              </p>
-              <p>
-                Then review Configuration. Set grain price, discount rate, persistence, adoption, and risk multipliers. Results update when inputs change.
-                Use Sensitivity to explore how results change under different prices, discount rates, persistence assumptions, and recurrence frequencies.
-              </p>
-            </div>
+            <h2>Data model</h2>
+            <p>
+              The tool expects plot level data with a treatment label, a replicate identifier, a plot identifier,
+              a yield measure and one or more cost variables. Where a data dictionary is available it is used to
+              match roles. Otherwise the tool infers roles from column names.
+            </p>
+            <p>
+              Treatments are grouped using the treatment label. Within each replicate the tool identifies control
+              plots and calculates the mean control yield and cost per hectare. Each treated plot is then compared
+              with the control mean for the same replicate.
+            </p>
+            <p>
+              Yield deltas are computed as yield on the treated plot minus the mean yield of control plots in the
+              same replicate. Cost deltas are computed in the same way using costs per hectare. This approach
+              reduces the influence of level differences between replicates.
+            </p>
           </div>
 
           <div class="card">
-            <h2>Definitions</h2>
-            <div class="prose">
-              <p>
-                Net present value is the present value of benefits minus the present value of costs. Present value of benefits is the discounted value of yield revenue gains compared with the control.
-                Present value of costs is the discounted value of incremental costs, including any year zero capital cost. Benefit cost ratio is present value of benefits divided by present value of costs.
-                Return on investment is net present value divided by present value of costs, expressed as a percentage.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TECHNICAL APPENDIX (panel kept as a link + status, but the tab opens a new page) -->
-      <section class="tab-panel" data-tab-panel="appendix" id="tab-appendix" role="tabpanel" aria-hidden="true" hidden>
-        <div class="page">
-          <div class="page-head">
-            <h1>Technical Appendix</h1>
-            <p class="muted">Opens in a new tab. If popups are blocked, use the link below.</p>
+            <h2>From plot level data to treatment summaries</h2>
+            <p>
+              For each treatment the tool aggregates plot level deltas to obtain mean effects. It records the
+              number of yield observations, the mean yield, the standard deviation of yield, the mean yield delta
+              relative to the control and the standard deviation of this delta.
+            </p>
+            <p>
+              The tool also summarises cost deltas. Labour, services and materials costs are separated using
+              column name patterns. Within each group the mean incremental cost per hectare is recorded for each
+              treatment relative to the control.
+            </p>
+            <p>
+              Outliers in yield deltas are flagged using the interquartile range rule. Treatments with very few
+              observations are flagged so that users can treat their results with caution.
+            </p>
           </div>
 
           <div class="card">
-            <h2>Open the Technical Appendix</h2>
-            <div class="prose">
-              <p>
-                <a href="technical-appendix.html" target="_blank" rel="noopener">Open technical-appendix.html in a new tab</a>.
-              </p>
-              <p>
-                The appendix page explains schema inference, replicate-specific baselines, cost scaling, and the exact export fields.
-              </p>
-            </div>
+            <h2>Cashflow construction</h2>
+            <p>
+              For each treatment the tool builds a stream of annual benefits and costs. Benefits are based on the
+              yield delta per hectare multiplied by grain price, farm area, adoption and a risk adjustment. Yield
+              effects can be limited to a fixed number of years through the persistence setting.
+            </p>
+            <p>
+              Costs are split into capital and recurring components. Capital costs occur in year zero. Recurring
+              costs are built from labour, services and materials cost per hectare multiplied by the treated area.
+              A recurrence setting allows these application costs to repeat every given number of years or only in
+              year zero.
+            </p>
+            <p>
+              For any given treatment the tool then holds a vector of net cashflows equal to benefits minus costs
+              for each year in the analysis horizon.
+            </p>
           </div>
 
           <div class="card">
-            <h2>Import summary</h2>
-            <p class="small muted" id="importStatus">No dataset parsed yet.</p>
+            <h2>Economic indicators</h2>
+            <p>
+              The present value of benefits is the sum of discounted annual benefits. The present value of costs
+              is the sum of discounted annual costs. Net present value is the difference between the present value
+              of benefits and the present value of costs.
+            </p>
+            <p>
+              The benefit cost ratio is the present value of benefits divided by the present value of costs. The
+              return on investment is net present value divided by the present value of costs, expressed in
+              percent. These indicators are computed for each treatment and then compared with the control.
+            </p>
+            <p>
+              The internal rate of return is the discount rate that produces a net present value of zero for the
+              stream of net cashflows. The modified internal rate of return uses separate finance and
+              reinvestment rates and is reported where meaningful. The payback period is the first year in which
+              the cumulative discounted cashflow becomes non negative.
+            </p>
+          </div>
+
+          <div class="card">
+            <h2>Sensitivity analysis</h2>
+            <p>
+              Sensitivity analysis is performed by varying four factors. These are grain price, discount rate,
+              persistence of yield effects and recurrence of costs. The tool builds a grid of scenarios across
+              these four dimensions and recomputes net present value, benefit cost ratio and return on investment
+              for each treatment and scenario.
+            </p>
+            <p>
+              The sensitivity summary page reports how wide the scenario grid is and highlights extremes. Analysts
+              can export the full grid to a CSV file for further work in a spreadsheet or statistical package.
+            </p>
+          </div>
+
+          <div class="card">
+            <h2>Data checks</h2>
+            <p>
+              During import the tool runs a set of checks. These include detection of missing key variables,
+              absence of control observations, negative yields, non numeric cost entries and low replication for
+              treatments. Each check is tagged with a severity level so that users can focus on problems that
+              would make economic results unreliable.
+            </p>
+            <p>
+              Error level checks prevent the dataset from being committed. Warning level checks do not block
+              analysis but are highlighted on the Data tab and in the AI briefing prompt.
+            </p>
           </div>
         </div>
       </section>
     </main>
-
-    <footer class="app-footer">
-      <div class="small muted">
-        Built for farming decision support. This tool explains trade-offs and sensitivity. It does not prescribe choices.
-      </div>
-    </footer>
   </div>
 </body>
 </html>
