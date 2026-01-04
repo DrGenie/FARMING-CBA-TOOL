@@ -24,10 +24,10 @@
       horizonYears: 10,
       persistence: 1
     },
-    extraBenefits: {}, // treatment -> { annual, onceOff }
-    extraCosts: {}, // treatment -> { seed, labour, machinery, chemicals, other }
-    costRecurrence: {}, // treatment -> share 0-1
-    scenarios: [], // {id, name, settings, results}
+    extraBenefits: {},
+    extraCosts: {},
+    costRecurrence: {},
+    scenarios: [],
     charts: {
       npvVsControl: null,
       costBenefit: null,
@@ -117,6 +117,14 @@
 
     DOM.toastHost = document.getElementById("toastHost");
     DOM.toastRegion = document.getElementById("toastRegion");
+
+    // AI briefing elements
+    DOM.openCopilotBtn = document.getElementById("openCopilotBtn");
+    DOM.generateAiPromptBtn = document.getElementById("generateAiPromptBtn");
+    DOM.copyCopilotPromptBtn = document.getElementById("copyCopilotPromptBtn");
+    DOM.copyChatGptPromptBtn = document.getElementById("copyChatGptPromptBtn");
+    DOM.aiCopilotPromptArea = document.getElementById("aiCopilotPromptArea");
+    DOM.aiChatGptPromptArea = document.getElementById("aiChatGptPromptArea");
   }
 
   /* Tabs */
@@ -129,7 +137,8 @@
         setActiveTab(target);
       });
     });
-    setActiveTab("tab-results");
+    // Start on overview
+    setActiveTab("tab-overview");
   }
 
   function setActiveTab(panelId) {
@@ -186,6 +195,32 @@
         });
       }
     });
+
+    if (DOM.openCopilotBtn) {
+      DOM.openCopilotBtn.addEventListener("click", () => {
+        window.open("https://copilot.microsoft.com", "_blank", "noopener");
+      });
+    }
+
+    if (DOM.generateAiPromptBtn) {
+      DOM.generateAiPromptBtn.addEventListener("click", handleGenerateAiPrompts);
+    }
+    if (DOM.copyCopilotPromptBtn) {
+      DOM.copyCopilotPromptBtn.addEventListener("click", () =>
+        copyToClipboard(
+          DOM.aiCopilotPromptArea ? DOM.aiCopilotPromptArea.value : "",
+          "Prompt for Copilot copied to clipboard."
+        )
+      );
+    }
+    if (DOM.copyChatGptPromptBtn) {
+      DOM.copyChatGptPromptBtn.addEventListener("click", () =>
+        copyToClipboard(
+          DOM.aiChatGptPromptArea ? DOM.aiChatGptPromptArea.value : "",
+          "Prompt for ChatGPT copied to clipboard."
+        )
+      );
+    }
   }
 
   /* Data loading */
@@ -850,7 +885,6 @@
     const n = state.settings.horizonYears;
     const p = state.settings.persistence;
 
-    // Update benefits PV totals
     if (DOM.benefitConfigTable) {
       const rows = DOM.benefitConfigTable.querySelectorAll("tbody tr");
       rows.forEach((tr) => {
@@ -878,7 +912,6 @@
       });
     }
 
-    // Update extra cost totals (simple non-discounted per ha)
     if (DOM.costConfigTable) {
       const rows = DOM.costConfigTable.querySelectorAll("tbody tr");
       rows.forEach((tr) => {
@@ -1516,7 +1549,6 @@
 
     const wb = XLSX.utils.book_new();
 
-    // Comparison sheet
     const compRows = [];
     const indicators = [
       { key: "pvBenefits", label: "Total benefits over time (present value)" },
@@ -1542,7 +1574,6 @@
     const wsComp = XLSX.utils.aoa_to_sheet(compRows);
     XLSX.utils.book_append_sheet(wb, wsComp, "Comparison");
 
-    // Treatment summary sheet
     const tsHeader = ["Treatment", "Is control?", "Mean yield (t/ha)", "Mean cost per ha"];
     const tsRows = [tsHeader];
     state.treatmentSummaries.forEach((t) => {
@@ -1600,6 +1631,252 @@
     showToast("Scenario results downloaded.", "success");
   }
 
+  /* AI briefing prompts */
+
+  function handleGenerateAiPrompts() {
+    if (!state.baseResults || !state.baseResults.control) {
+      showToast("Results are not yet available. Please ensure the dataset has loaded and results are visible.", "error");
+      return;
+    }
+    const prompts = buildAiBriefingPrompts();
+    if (DOM.aiCopilotPromptArea) {
+      DOM.aiCopilotPromptArea.value = prompts.copilotPrompt;
+    }
+    if (DOM.aiChatGptPromptArea) {
+      DOM.aiChatGptPromptArea.value = prompts.chatGptPrompt;
+    }
+    showToast("AI briefing prompts generated for Copilot and ChatGPT.", "success");
+  }
+
+  function buildAiBriefingPrompts() {
+    const base = state.baseResults;
+    const control = base.control;
+    const allResults = base.results.slice().sort((a, b) => a.rank - b.rank);
+    const treatmentsForTable = [];
+
+    if (control) {
+      treatmentsForTable.push(control);
+    }
+    allResults.forEach((r) => {
+      if (!r.isControl) treatmentsForTable.push(r);
+    });
+
+    const maxCols = 5;
+    const cols = treatmentsForTable.slice(0, maxCols);
+
+    function plainCurrency(v) {
+      if (!isFinite(v)) return "NA";
+      const rounded = round(v);
+      return String(rounded);
+    }
+
+    function plainNumber(v, decimals) {
+      if (!isFinite(v)) return "NA";
+      return String(round(v, decimals));
+    }
+
+    function plainPercent(v) {
+      if (!isFinite(v)) return "NA";
+      return String(round(v * 100, 2));
+    }
+
+    const headerLine =
+      "Indicator | " + cols.map((c) => (c.isControl ? c.treatment + " (control)" : c.treatment)).join(" | ");
+
+    function indicatorLine(label, getter, formatter) {
+      const cells = cols.map((c) => formatter(getter(c)));
+      return label + " | " + cells.join(" | ");
+    }
+
+    const tableLines = [];
+    tableLines.push(headerLine);
+    tableLines.push(
+      indicatorLine("Total benefits over time (present value per ha)", (r) => r.pvBenefits, plainCurrency)
+    );
+    tableLines.push(
+      indicatorLine("Total costs over time (present value per ha)", (r) => r.pvCosts, plainCurrency)
+    );
+    tableLines.push(
+      indicatorLine("Net profit over time (present value per ha)", (r) => r.npv, plainCurrency)
+    );
+    tableLines.push(
+      indicatorLine("Benefit per dollar spent", (r) => r.bcr, (v) => plainNumber(v, 3))
+    );
+    tableLines.push(
+      indicatorLine("Return on investment percent", (r) => r.roi, plainPercent)
+    );
+    tableLines.push(
+      indicatorLine("Difference in net profit vs control (per ha)", (r) => r.deltaNPV, plainCurrency)
+    );
+    tableLines.push(
+      indicatorLine("Difference in total cost vs control (per ha)", (r) => r.deltaCost, plainCurrency)
+    );
+    tableLines.push(
+      indicatorLine("Ranking by net profit (1 is best)", (r) => r.rank, (v) => (v == null ? "NA" : String(v)))
+    );
+
+    const scenarioLines = [];
+    scenarioLines.push("Scenario name | Grain price | Discount rate percent | Time horizon years | Persistence | Best treatment | Gain vs control (net profit per ha)");
+    state.scenarios.forEach((sc) => {
+      const controlSc = sc.results.control;
+      let best = null;
+      let gain = null;
+      if (controlSc) {
+        best = sc.results.results
+          .filter((r) => !r.isControl)
+          .slice()
+          .sort((a, b) => (b.npv || 0) - (a.npv || 0))[0];
+        if (best) {
+          gain = best.npv - controlSc.npv;
+        }
+      }
+      scenarioLines.push(
+        [
+          sc.name,
+          plainCurrency(sc.settings.grainPrice),
+          plainNumber(sc.settings.discountRate, 2),
+          plainNumber(sc.settings.horizonYears, 0),
+          plainNumber(sc.settings.persistence, 2),
+          best ? best.treatment : "NA",
+          gain != null ? plainCurrency(gain) : "NA"
+        ].join(" | ")
+      );
+    });
+
+    const controlName = control ? control.treatment : "Control";
+    const controlNpv = control ? plainCurrency(control.npv) : "NA";
+
+    const topTreatment = allResults.find((r) => !r.isControl) || null;
+    const topName = topTreatment ? topTreatment.treatment : "NA";
+    const topNpv = topTreatment ? plainCurrency(topTreatment.npv) : "NA";
+    const topDelta = topTreatment ? plainCurrency(topTreatment.deltaNPV) : "NA";
+
+    const overviewNotes = (state.notes.overview || "").trim();
+    const resultsNotes = (state.notes.results || "").trim();
+    const benefitsNotes = (state.notes.benefits || "").trim();
+    const costsNotes = (state.notes.costs || "").trim();
+    const simulationNotes = (state.notes.simulation || "").trim();
+
+    const contextNotesParts = [];
+    if (overviewNotes) contextNotesParts.push("Overview notes from the user:\n" + overviewNotes);
+    if (resultsNotes) contextNotesParts.push("Results notes from the user:\n" + resultsNotes);
+    if (benefitsNotes) contextNotesParts.push("Benefits notes from the user:\n" + benefitsNotes);
+    if (costsNotes) contextNotesParts.push("Costs notes from the user:\n" + costsNotes);
+    if (simulationNotes) contextNotesParts.push("Simulation notes from the user:\n" + simulationNotes);
+    const contextNotesBlock = contextNotesParts.join("\n\n");
+
+    const copilotPrompt =
+      "You are assisting with a policy style report for a mixed audience of farmers, farm advisers, and government policy staff.\n\n" +
+      "Purpose of the report:\n" +
+      "Prepare a detailed yet accessible written report of about three to five pages that presents and interprets the results of a faba beans soil and nutrient management trial.\n" +
+      "The report must focus on economic performance relative to a control treatment and should be suitable for use in extension documents and policy briefings.\n\n" +
+      "Key writing instructions:\n" +
+      "Write in clear and plain English and avoid technical economic jargon.\n" +
+      "Do not use bullet points. Use paragraphs and short subheadings instead.\n" +
+      "Write for three audiences at once: farmers, advisers, and policy staff.\n" +
+      "Highlight which treatments improve net profit compared with the control and why.\n" +
+      "Include interpretation of uncertainty and sensitivity to assumptions.\n\n" +
+      "Structure the report in the following order using headings and subheadings:\n" +
+      "1. Executive summary\n" +
+      "2. Background and purpose of the trial\n" +
+      "3. Data and methods in plain language\n" +
+      "4. Main economic results comparing each treatment with the control\n" +
+      "5. Scenario and sensitivity analysis\n" +
+      "6. Practical implications for farmers and advisers\n" +
+      "7. Policy implications for government and extension programs\n" +
+      "8. Limitations and cautions\n" +
+      "9. Key messages and next steps\n\n" +
+      "Present the quantitative results using the tables provided below. Reproduce these tables in the report in a clean and readable way so that the report is self contained.\n\n" +
+      "Trial and analysis context (plain text):\n" +
+      "The trial compares several soil and nutrient treatments for faba beans against a control treatment that represents current practice on the trial site.\n" +
+      "All results are expressed per hectare and reported as present values over time.\n" +
+      "The control treatment is named: " +
+      controlName +
+      ".\n" +
+      "The net profit over time for the control is approximately: " +
+      controlNpv +
+      " currency units per hectare.\n" +
+      "The top ranked treatment by net profit is: " +
+      topName +
+      " with net profit of approximately " +
+      topNpv +
+      " per hectare and an improvement over the control of about " +
+      topDelta +
+      " per hectare.\n\n" +
+      "Main comparison table of economic indicators by treatment (per hectare, present values):\n" +
+      tableLines.join("\n") +
+      "\n\n" +
+      "Scenario and sensitivity table (how rankings respond to different assumptions):\n" +
+      scenarioLines.join("\n") +
+      "\n\n" +
+      (contextNotesBlock
+        ? "Additional contextual notes supplied by the user. Use these to inform interpretation, but do not treat them as data:\n" +
+          contextNotesBlock +
+          "\n\n"
+        : "") +
+      "Please perform the following tasks when writing the report:\n" +
+      "Explain how cost benefit analysis is used here in plain language that a non specialist can understand.\n" +
+      "Describe clearly how each treatment compares with the control in terms of total benefits, total costs, net profit, benefit per dollar spent, and return on investment.\n" +
+      "Explain why some treatments may have higher costs but also higher profits, and how this should be interpreted by farmers and advisers.\n" +
+      "Discuss the scenario results and explain what they mean for sensitivity to grain prices, discount rates, and persistence of treatment effects.\n" +
+      "Provide concrete examples of how a farmer might use these results when choosing treatments on farm.\n" +
+      "Provide concrete examples of how a policy maker might use these results when designing incentives or extension programs.\n" +
+      "Make sure the report can be read on its own without needing to see the original dataset or this prompt.\n";
+
+    const chatGptPrompt =
+      "You are helping to write a detailed policy style report that explains the results of a faba beans soil and nutrient management trial.\n\n" +
+      "Audience:\n" +
+      "Farmers, farm advisers, and policy or extension staff who are comfortable with numbers but are not specialists in economics.\n\n" +
+      "Goal:\n" +
+      "Write a three to five page equivalent report in clear English that explains the cost and benefit results of the trial.\n" +
+      "Focus on how each treatment compares with the control treatment in terms of total benefits, costs, and net profit over time.\n\n" +
+      "Important style requirements:\n" +
+      "Avoid bullet points and instead use structured paragraphs and headings.\n" +
+      "Use short sections and subheadings similar to a policy brief.\n" +
+      "Explain technical ideas such as discounting, net present value, and benefit per dollar spent using plain language.\n\n" +
+      "Use the following quantitative information to build the report. You should reproduce the tables in the report so that it is self contained.\n\n" +
+      "Main comparison table of economic indicators by treatment (per hectare, present values):\n" +
+      tableLines.join("\n") +
+      "\n\n" +
+      "Scenario and sensitivity table:\n" +
+      scenarioLines.join("\n") +
+      "\n\n" +
+      "Core context and headline findings to emphasise:\n" +
+      "The control treatment is named " +
+      controlName +
+      " and has a net profit over time of about " +
+      controlNpv +
+      " per hectare.\n" +
+      "The highest ranked treatment by net profit is " +
+      topName +
+      " with a net profit of about " +
+      topNpv +
+      " per hectare, which is approximately " +
+      topDelta +
+      " per hectare better than the control.\n\n" +
+      (contextNotesBlock
+        ? "User supplied notes that may contain relevant interpretation. Use them as context, but focus the report on the quantitative results above:\n" +
+          contextNotesBlock +
+          "\n\n"
+        : "") +
+      "Please structure the report with the following sections:\n" +
+      "Executive summary that explains the main findings in one or two paragraphs.\n" +
+      "Background and description of the trial in plain language.\n" +
+      "Data and method description with emphasis on how yields and costs were turned into present value benefits and costs.\n" +
+      "Detailed results section comparing each treatment with the control, drawing on the main comparison table.\n" +
+      "Scenario and sensitivity section that explains the scenario table and what it implies about robustness of the results.\n" +
+      "Practical recommendations for farmers and advisers, focusing on how to interpret differences between treatments.\n" +
+      "Policy implications for government and extension programs.\n" +
+      "Limitations and uncertainties, including data limitations and assumptions about prices, discount rates, and persistence.\n" +
+      "A short concluding section that summarises the most important messages.\n\n" +
+      "Make sure the report is clear, coherent, and suitable for inclusion in a decision aid or extension document.\n";
+
+    return {
+      copilotPrompt,
+      chatGptPrompt
+    };
+  }
+
   /* Toast */
 
   function showToast(message, type = "info") {
@@ -1623,6 +1900,43 @@
         DOM.toastHost.removeChild(div);
       }
     }, 4000);
+  }
+
+  /* Clipboard helpers */
+
+  function copyToClipboard(text, successMessage) {
+    if (!text) {
+      showToast("Nothing to copy yet. Please generate the prompt first.", "error");
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          showToast(successMessage, "success");
+        })
+        .catch(() => {
+          fallbackCopy(text, successMessage);
+        });
+    } else {
+      fallbackCopy(text, successMessage);
+    }
+  }
+
+  function fallbackCopy(text, successMessage) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showToast(successMessage, "success");
+    } catch (e) {
+      showToast("Copy to clipboard is not available in this browser.", "error");
+    }
+    ta.remove();
   }
 
   /* Utilities */
