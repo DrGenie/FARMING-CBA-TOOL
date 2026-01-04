@@ -3109,3 +3109,1419 @@
     switchTab("results");
   });
 })();
+
+/* APP.JS PATCH (paste into your existing app.js near the end, before the closing of your IIFE)
+   This module is self-contained and only assumes:
+   - your existing showToast(message) exists (it does in your app.js paste)
+   - your existing downloadFile(name, content, mime) exists (if not, this patch provides a fallback)
+*/
+(function attachFabaBeansTrialCBA(){
+  "use strict";
+
+  // ---------- FALLBACKS ----------
+  const hasToast = typeof window.showToast === "function";
+  const toast = (m)=>{ try{ (hasToast? window.showToast : alert)(m);}catch(_){ /* ignore */ } };
+
+  const downloadFileFallback = (filename, content, mime) => {
+    const blob = new Blob([content], { type: mime || "application/octet-stream" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  };
+  const downloadFile = (typeof window.downloadFile === "function") ? window.downloadFile : downloadFileFallback;
+
+  const $ = (sel)=>document.querySelector(sel);
+
+  // ---------- DEFAULT SCENARIOS ----------
+  const DEFAULT = {
+    prices: [300,350,400,450,500],
+    discounts: [0.05,0.07,0.10],
+    horizon: 10,
+    persistence: {
+      "1yr_only": [1,0,0,0,0,0,0,0,0,0],
+      "3yr_decay": [1,0.5,0.25,0,0,0,0,0,0,0],
+      "5yr_decay": [1,0.8,0.6,0.4,0.2,0,0,0,0,0],
+      "10yr_constant": [1,1,1,1,1,1,1,1,1,1]
+    }
+  };
+
+  // ---------- STATE ----------
+  const state = {
+    rawText: "",
+    dictText: "",
+    rows: [],
+    columns: [],
+    dict: null,
+    validation: null,
+    committed: false,
+    replicateStats: null,
+    treatmentStats: null,
+    config: new Map(), // key: treatmentKey -> { include:boolean, recurrence:'one_off'|'annual'|'custom', customCostPath?:number[] }
+    scenario: {
+      horizon: DEFAULT.horizon,
+      prices: [...DEFAULT.prices],
+      discounts: [...DEFAULT.discounts],
+      persistence: JSON.parse(JSON.stringify(DEFAULT.persistence)),
+      selectedPrice: DEFAULT.prices[3],
+      selectedDiscount: DEFAULT.discounts[1],
+      selectedPersistence: "10yr_constant",
+      scale: 1
+    },
+    filters: { mode: "all" }
+  };
+
+  // ---------- DICTIONARY PARSE ----------
+  function parseCSVLine(line){
+    const out = [];
+    let cur = "";
+    let inQ = false;
+    for(let i=0;i<line.length;i++){
+      const ch = line[i];
+      if(ch === '"' ){
+        if(inQ && line[i+1] === '"'){ cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if(ch === "," && !inQ){
+        out.push(cur);
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur);
+    return out.map(s=>s.trim());
+  }
+
+  function parseDictionaryCSV(text){
+    const lines = (text||"").replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").filter(l=>l.trim().length);
+    if(!lines.length) return null;
+    const header = parseCSVLine(lines[0]);
+    const idx = (name)=>header.findIndex(h=>h.toLowerCase().trim()===name.toLowerCase().trim());
+    const colIdx = idx("column_name");
+    const labelIdx = idx("label");
+    const typeIdx = idx("type");
+    const reqIdx = idx("required");
+    const tipIdx = idx("tooltip");
+    const roleIdx = idx("role");
+    const unitIdx = idx("unit");
+
+    const dict = {
+      byCol: new Map(),
+      rawHeader: header
+    };
+
+    for(let i=1;i<lines.length;i++){
+      const row = parseCSVLine(lines[i]);
+      const col = (colIdx>=0? row[colIdx] : row[0])?.trim();
+      if(!col) continue;
+      const meta = {
+        column_name: col,
+        label: (labelIdx>=0? row[labelIdx] : "") || col,
+        type: (typeIdx>=0? row[typeIdx] : "") || "",
+        required: (reqIdx>=0? row[reqIdx] : "") || "",
+        tooltip: (tipIdx>=0? row[tipIdx] : "") || "",
+        role: (roleIdx>=0? row[roleIdx] : "") || "",
+        unit: (unitIdx>=0? row[unitIdx] : "") || ""
+      };
+      dict.byCol.set(col, meta);
+    }
+    return dict;
+  }
+
+  function colLabel(col){
+    const d = state.dict?.byCol?.get(col);
+    return d?.label || col;
+  }
+  function colTip(col){
+    const d = state.dict?.byCol?.get(col);
+    return d?.tooltip || "";
+  }
+
+  // ---------- DATA PARSE ----------
+  function splitLines(text){
+    return (text||"").replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n");
+  }
+
+  function sniffDelimiter(text){
+    const head = splitLines(text).slice(0,3).join("\n");
+    const tabs = (head.match(/\t/g)||[]).length;
+    const commas = (head.match(/,/g)||[]).length;
+    return (tabs>=commas) ? "\t" : ",";
+  }
+
+  function parseDelimited(text){
+    const delim = sniffDelimiter(text);
+    const lines = splitLines(text).filter(l=>l.trim().length);
+    if(!lines.length) return { columns:[], rows:[] };
+
+    const header = (delim === "\t") ? lines[0].split("\t") : parseCSVLine(lines[0]);
+    const columns = header.map(h=>h.trim()).filter(h=>h.length);
+
+    // Guard against unnamed columns
+    const unnamed = columns.filter(c=>/^unnamed/i.test(c) || c==="" );
+    if(unnamed.length){
+      // keep them (no dropping) but flag loudly later
+    }
+
+    const rows = [];
+    for(let i=1;i<lines.length;i++){
+      const parts = (delim === "\t") ? lines[i].split("\t") : parseCSVLine(lines[i]);
+      const obj = {};
+      for(let c=0;c<columns.length;c++){
+        obj[columns[c]] = (parts[c] ?? "").trim();
+      }
+      rows.push(obj);
+    }
+    return { columns, rows };
+  }
+
+  function isMissing(v){
+    if(v === null || v === undefined) return true;
+    const s = String(v).trim();
+    return s === "" || s === "?" ;
+  }
+
+  function toNumberOrNaN(v){
+    if(isMissing(v)) return NaN;
+    if(typeof v === "number") return Number.isFinite(v) ? v : NaN;
+    const cleaned = String(v).trim().replace(/[\$,]/g,"");
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  // ---------- REQUIRED COLUMN RESOLUTION ----------
+  // Use dictionary roles if present, else fall back to the explicit names given in your spec.
+  function resolveColumns(){
+    const cols = new Set(state.columns);
+    const byRole = new Map();
+    if(state.dict?.byCol){
+      for(const [c,m] of state.dict.byCol.entries()){
+        const role = (m.role||"").trim();
+        if(role) byRole.set(role, c);
+      }
+    }
+
+    const pick = (role, fallbackName)=>{
+      const a = byRole.get(role);
+      if(a && cols.has(a)) return a;
+      if(fallbackName && cols.has(fallbackName)) return fallbackName;
+      return null;
+    };
+
+    const resolved = {
+      replicate_id: pick("replicate_id","replicate_id"),
+      treatment_id: pick("treatment_id","treatment_id"),
+      amendment_name: pick("amendment_name","amendment_name"),
+      yield_t_ha: pick("yield_t_ha","yield_t_ha"),
+      total_cost_per_ha_raw: pick("total_cost_per_ha_raw","total_cost_per_ha_raw"),
+      cost_amendment_input_per_ha_raw: pick("cost_amendment_input_per_ha_raw","cost_amendment_input_per_ha_raw")
+    };
+
+    return resolved;
+  }
+
+  // ---------- VALIDATION + COST RECONSTRUCTION ----------
+  function reconstructCosts(rows, col){
+    const out = [];
+    const scalingHits = new Map(); // amendment -> {count, rawMin, rawMax, rawMean, adjMin, adjMax, adjMean}
+    const amendCol = col.amendment_name;
+
+    let sumRaw=0, sumAdj=0, nRaw=0, nAdj=0;
+    for(const r of rows){
+      const rawTotal = toNumberOrNaN(r[col.total_cost_per_ha_raw]);
+      const rawAmend = toNumberOrNaN(r[col.cost_amendment_input_per_ha_raw]);
+      const amendName = String(r[amendCol] ?? "").trim();
+
+      let adjAmend = rawAmend;
+      let scaled = false;
+      if(Number.isFinite(rawAmend) && rawAmend > 1000){
+        adjAmend = rawAmend / 100;
+        scaled = true;
+      }
+      let total = rawTotal;
+      if(Number.isFinite(rawTotal) && Number.isFinite(rawAmend) && Number.isFinite(adjAmend)){
+        total = rawTotal - rawAmend + adjAmend;
+      } else {
+        // if missing parts, total becomes NaN (explicitly missing) rather than silently using rawTotal
+        total = NaN;
+      }
+
+      out.push({ rawTotal, rawAmend, adjAmend, total, scaled, amendName });
+
+      if(scaled && amendName){
+        let s = scalingHits.get(amendName);
+        if(!s){
+          s = { count:0, rawMin:+Infinity, rawMax:-Infinity, rawSum:0, adjMin:+Infinity, adjMax:-Infinity, adjSum:0 };
+          scalingHits.set(amendName, s);
+        }
+        s.count++;
+        if(Number.isFinite(rawAmend)){ s.rawMin=Math.min(s.rawMin,rawAmend); s.rawMax=Math.max(s.rawMax,rawAmend); s.rawSum += rawAmend; }
+        if(Number.isFinite(adjAmend)){ s.adjMin=Math.min(s.adjMin,adjAmend); s.adjMax=Math.max(s.adjMax,adjAmend); s.adjSum += adjAmend; }
+      }
+
+      if(Number.isFinite(rawAmend)){ sumRaw += rawAmend; nRaw++; }
+      if(Number.isFinite(adjAmend)){ sumAdj += adjAmend; nAdj++; }
+    }
+
+    const scalingSummary = [];
+    for(const [k,v] of scalingHits.entries()){
+      scalingSummary.push({
+        amendment_name: k,
+        count: v.count,
+        raw_min: (v.rawMin===+Infinity? NaN : v.rawMin),
+        raw_max: (v.rawMax===-Infinity? NaN : v.rawMax),
+        raw_mean: v.count ? (v.rawSum / v.count) : NaN,
+        adj_min: (v.adjMin===+Infinity? NaN : v.adjMin),
+        adj_max: (v.adjMax===-Infinity? NaN : v.adjMax),
+        adj_mean: v.count ? (v.adjSum / v.count) : NaN
+      });
+    }
+    scalingSummary.sort((a,b)=>b.count-a.count);
+
+    return { reconstructed: out, scalingSummary, overall: { raw_mean: nRaw? sumRaw/nRaw : NaN, adj_mean: nAdj? sumAdj/nAdj : NaN } };
+  }
+
+  function validateAndSummarise(){
+    const resolved = resolveColumns();
+    const required = Object.entries(resolved).filter(([,v])=>!v).map(([k])=>k);
+
+    const issues = [];
+    const unnamedCols = state.columns.filter(c=>/^unnamed/i.test(c) || c==="");
+    if(unnamedCols.length){
+      issues.push({ level:"bad", msg:`The dataset includes unnamed columns (${unnamedCols.slice(0,3).join(", ")}). The tool will keep them but you should fix headers to avoid ambiguity.` });
+    }
+    if(required.length){
+      issues.push({ level:"bad", msg:`Missing required columns: ${required.join(", ")}. The faba-beans CBA engine requires these fields.` });
+    }
+
+    // Missingness scan for key numeric fields
+    const keyNumeric = [resolved.yield_t_ha, resolved.total_cost_per_ha_raw, resolved.cost_amendment_input_per_ha_raw].filter(Boolean);
+    const missCounts = {};
+    for(const c of keyNumeric) missCounts[c] = 0;
+
+    // replicate controls availability
+    const repMap = new Map(); // rep -> { n:0, nCtrl:0, ctrlY:[], ctrlC:[] }
+    const rec = reconstructCosts(state.rows, resolved);
+
+    for(let i=0;i<state.rows.length;i++){
+      const r = state.rows[i];
+      const rep = String(r[resolved.replicate_id] ?? "").trim();
+      const tid = toNumberOrNaN(r[resolved.treatment_id]);
+      const amend = String(r[resolved.amendment_name] ?? "").trim();
+
+      const isCtrl = (amend && amend.toLowerCase() === "control") || (Number.isFinite(tid) && tid === 1);
+
+      const y = toNumberOrNaN(r[resolved.yield_t_ha]);
+      const c = rec.reconstructed[i].total;
+
+      for(const cN of keyNumeric){
+        const v = (cN === resolved.yield_t_ha) ? y :
+                  (cN === resolved.total_cost_per_ha_raw) ? toNumberOrNaN(r[resolved.total_cost_per_ha_raw]) :
+                  toNumberOrNaN(r[resolved.cost_amendment_input_per_ha_raw]);
+        if(!Number.isFinite(v)) missCounts[cN] += 1;
+      }
+
+      if(!rep){
+        continue;
+      }
+      let g = repMap.get(rep);
+      if(!g){
+        g = { n:0, nCtrl:0, ctrlY:[], ctrlC:[] };
+        repMap.set(rep,g);
+      }
+      g.n++;
+      if(isCtrl){
+        g.nCtrl++;
+        if(Number.isFinite(y)) g.ctrlY.push(y);
+        if(Number.isFinite(c)) g.ctrlC.push(c);
+      }
+    }
+
+    const repIssues = [];
+    let repsWithNoCtrl = 0;
+    for(const [rep,g] of repMap.entries()){
+      if(g.nCtrl === 0){
+        repsWithNoCtrl++;
+        repIssues.push(rep);
+      }
+    }
+    if(repsWithNoCtrl){
+      issues.push({ level:"bad", msg:`Some replicates have no control plots and will be excluded from delta computations: ${repIssues.join(", ")}.` });
+    } else {
+      issues.push({ level:"good", msg:`All replicates contain control plots. Replicate-specific baselines can be computed safely.` });
+    }
+
+    const missText = keyNumeric.map(c=>`${colLabel(c)}: ${missCounts[c]}`).join(" | ");
+    issues.push({ level: (Object.values(missCounts).some(n=>n>0) ? "warn" : "good"), msg:`Missing or non-numeric values in key numeric fields (excluded from means): ${missText}.` });
+
+    state.validation = { resolved, issues, missCounts, repMap, scaling: rec.scalingSummary };
+    state.replicateStats = { repMap, repsWithNoCtrl, repIssues };
+    state.committed = false;
+    renderDiagnostics();
+    renderDataChecks();
+    renderPreviewTable();
+    const rowsEl = $("#faba-rows"), colsEl = $("#faba-cols"), repsEl = $("#faba-reps");
+    if(rowsEl) rowsEl.textContent = String(state.rows.length);
+    if(colsEl) colsEl.textContent = String(state.columns.length);
+    if(repsEl) repsEl.textContent = String(repMap.size);
+
+    const ok = required.length === 0 && state.rows.length > 0;
+    const commitBtn = $("#faba-commit");
+    if(commitBtn) commitBtn.disabled = !ok;
+    toast(ok ? "Validation complete. Ready to commit." : "Validation found blocking issues. Fix required columns first.");
+    return ok;
+  }
+
+  // ---------- REPLICATE BASELINES + TREATMENT STATS ----------
+  function mean(arr){
+    const c = arr.filter(v=>Number.isFinite(v));
+    if(!c.length) return NaN;
+    return c.reduce((a,b)=>a+b,0)/c.length;
+  }
+  function sd(arr){
+    const c = arr.filter(v=>Number.isFinite(v));
+    if(c.length<2) return NaN;
+    const m = mean(c);
+    const v = c.reduce((a,b)=>a+(b-m)*(b-m),0)/(c.length-1);
+    return Math.sqrt(v);
+  }
+
+  function commitDataset(){
+    if(!state.validation) {
+      toast("Validate first.");
+      return;
+    }
+    const col = state.validation.resolved;
+    const rec = reconstructCosts(state.rows, col);
+
+    // compute replicate baselines
+    const repBase = new Map(); // rep -> { y0, c0 }
+    for(const [rep,g] of state.validation.repMap.entries()){
+      const y0 = mean(g.ctrlY);
+      const c0 = mean(g.ctrlC);
+      repBase.set(rep, { y0, c0, ok: Number.isFinite(y0) && Number.isFinite(c0) && g.nCtrl>0 });
+    }
+
+    // build plot-level deltas
+    const plot = [];
+    for(let i=0;i<state.rows.length;i++){
+      const r = state.rows[i];
+      const rep = String(r[col.replicate_id] ?? "").trim();
+      const tid = toNumberOrNaN(r[col.treatment_id]);
+      const amend = String(r[col.amendment_name] ?? "").trim();
+      const isCtrl = (amend && amend.toLowerCase() === "control") || (Number.isFinite(tid) && tid === 1);
+
+      const y = toNumberOrNaN(r[col.yield_t_ha]);
+      const c = rec.reconstructed[i].total;
+
+      const base = repBase.get(rep);
+      const hasBase = base?.ok;
+
+      const dy = (hasBase && Number.isFinite(y)) ? (y - base.y0) : NaN;
+      const dc = (hasBase && Number.isFinite(c)) ? (c - base.c0) : NaN;
+
+      plot.push({
+        replicate_id: rep,
+        treatment_id: tid,
+        amendment_name: amend,
+        isControl: isCtrl,
+        yield_t_ha: y,
+        total_cost_per_ha: c,
+        delta_yield_t_ha: dy,
+        delta_cost_per_ha: dc,
+        _rep_ok: !!hasBase
+      });
+    }
+
+    // treatment-level stats (excluding controls from treatment list; but keep a control summary too)
+    const groups = new Map(); // key -> {name,isControl, ys, cs, dys, dcs, n, nDelta}
+    function keyOf(p){
+      // robust key: treatment_id if finite else amendment_name
+      if(Number.isFinite(p.treatment_id)) return `tid:${p.treatment_id}`;
+      return `name:${(p.amendment_name||"").toLowerCase()}`;
+    }
+
+    for(const p of plot){
+      const k = keyOf(p);
+      let g = groups.get(k);
+      if(!g){
+        g = { key:k, name: p.amendment_name || k, isControl: !!p.isControl, ys:[], cs:[], dys:[], dcs:[], n:0, nDelta:0 };
+        groups.set(k,g);
+      }
+      g.n++;
+      if(Number.isFinite(p.yield_t_ha)) g.ys.push(p.yield_t_ha);
+      if(Number.isFinite(p.total_cost_per_ha)) g.cs.push(p.total_cost_per_ha);
+      if(p._rep_ok){
+        if(Number.isFinite(p.delta_yield_t_ha)) g.dys.push(p.delta_yield_t_ha);
+        if(Number.isFinite(p.delta_cost_per_ha)) g.dcs.push(p.delta_cost_per_ha);
+        if(Number.isFinite(p.delta_yield_t_ha) || Number.isFinite(p.delta_cost_per_ha)) g.nDelta++;
+      }
+      // if any row indicates control, keep as control
+      if(p.isControl) g.isControl = true;
+      // best effort name
+      if(p.amendment_name && p.amendment_name.trim().length) g.name = p.amendment_name.trim();
+    }
+
+    const stats = [];
+    for(const g of groups.values()){
+      stats.push({
+        key: g.key,
+        name: g.isControl ? "Control" : g.name,
+        isControl: g.isControl,
+        n_plots: g.n,
+        mean_yield_t_ha: mean(g.ys),
+        sd_yield_t_ha: sd(g.ys),
+        mean_cost_per_ha: mean(g.cs),
+        sd_cost_per_ha: sd(g.cs),
+        mean_delta_yield_t_ha: mean(g.dys),
+        sd_delta_yield_t_ha: sd(g.dys),
+        mean_delta_cost_per_ha: mean(g.dcs),
+        sd_delta_cost_per_ha: sd(g.dcs),
+        n_delta_plots: g.dys.length || g.dcs.length ? Math.max(g.dys.length, g.dcs.length) : 0
+      });
+    }
+
+    // normalise control label
+    const control = stats.find(s=>s.isControl) || null;
+    for(const s of stats){
+      if(s.isControl) s.name = "Control";
+    }
+
+    // initialise configuration per treatment (control read-only)
+    const sorted = stats.slice().sort((a,b)=>{
+      if(a.isControl && !b.isControl) return -1;
+      if(!a.isControl && b.isControl) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    for(const s of sorted){
+      if(!state.config.has(s.key)){
+        state.config.set(s.key, {
+          include: true,
+          recurrence: s.isControl ? "one_off" : "one_off",
+          customCostPath: null
+        });
+      }
+    }
+
+    state.treatmentStats = { plot, stats: sorted, controlKey: control?.key || null, scaling: rec.scalingSummary };
+    state.committed = true;
+
+    // enable UI
+    const enableIds = [
+      "#faba-export-clean","#faba-apply-config","#faba-view-summary","#faba-export-treatments","#faba-export-grid",
+      "#faba-filter-topnpv","#faba-filter-topbcr","#faba-filter-improve","#faba-filter-all",
+      "#faba-copy-prompt","#faba-copy-json","#faba-save-scenario"
+    ];
+    for(const id of enableIds){
+      const el = $(id);
+      if(el) el.disabled = false;
+    }
+
+    renderConfigTable();
+    renderGlance();
+    recalcAndRender();
+    toast("Dataset committed. Results and all tabs updated.");
+  }
+
+  // ---------- PV ENGINE ----------
+  function adjustVectorToHorizon(vec, T){
+    const v = Array.isArray(vec) ? vec.slice() : [];
+    const clean = v.map(x=>Number(x)).map(x=>Number.isFinite(x)?x:0);
+    if(clean.length === T) return { vec: clean, warn: "" };
+    if(clean.length > T) return { vec: clean.slice(0,T), warn: `Persistence vector longer than horizon; truncated to ${T}.` };
+    // extend with zeros
+    const out = clean.concat(new Array(T - clean.length).fill(0));
+    return { vec: out, warn: `Persistence vector shorter than horizon; extended with zeros to ${T}.` };
+  }
+
+  function pvBenefits(deltaY, price, r, fVec){
+    let pv = 0;
+    for(let t=1;t<=fVec.length;t++){
+      pv += (deltaY * price * fVec[t-1]) / Math.pow(1+r, t);
+    }
+    return pv;
+  }
+  function pvCosts(deltaC, r, T, recurrence, customPath){
+    if(!Number.isFinite(deltaC)) return NaN;
+    if(recurrence === "annual"){
+      let pv = 0;
+      for(let t=1;t<=T;t++){
+        pv += deltaC / Math.pow(1+r, t);
+      }
+      return pv;
+    }
+    if(recurrence === "custom" && Array.isArray(customPath)){
+      const { vec } = adjustVectorToHorizon(customPath, T);
+      let pv = 0;
+      for(let t=1;t<=T;t++){
+        pv += (deltaC * vec[t-1]) / Math.pow(1+r, t);
+      }
+      return pv;
+    }
+    // one_off upfront
+    return deltaC;
+  }
+
+  function computeScenarioSlice(price, r, persistenceName){
+    if(!state.treatmentStats) return null;
+    const T = Math.max(1, Math.floor(Number(state.scenario.horizon) || 10));
+    const pers = state.scenario.persistence[persistenceName];
+    const adj = adjustVectorToHorizon(pers, T);
+
+    const control = state.treatmentStats.stats.find(s=>s.isControl);
+    const controlLevel = {
+      pv_benefits: 0,
+      pv_costs: 0,
+      npv: 0,
+      bcr: NaN,
+      roi: NaN,
+      rank: 0
+    };
+
+    const results = [];
+    for(const s of state.treatmentStats.stats){
+      const cfg = state.config.get(s.key) || { include:true, recurrence:"one_off", customCostPath:null };
+      const include = !!cfg.include || s.isControl;
+
+      const dy = s.isControl ? 0 : s.mean_delta_yield_t_ha;
+      const dc = s.isControl ? 0 : s.mean_delta_cost_per_ha;
+
+      const pvb = s.isControl ? 0 : pvBenefits(dy, price, r, adj.vec);
+      const pvc = s.isControl ? 0 : pvCosts(dc, r, T, cfg.recurrence, cfg.customCostPath);
+
+      const npv = (Number.isFinite(pvb) && Number.isFinite(pvc)) ? (pvb - pvc) : NaN;
+
+      const bcr = (Number.isFinite(pvb) && Number.isFinite(pvc) && pvc > 0) ? (pvb / pvc) : NaN;
+      const roi = (Number.isFinite(npv) && Number.isFinite(pvc) && pvc > 0) ? (npv / pvc) : NaN;
+
+      results.push({
+        key: s.key,
+        name: s.isControl ? "Control (baseline)" : s.name,
+        isControl: s.isControl,
+        include,
+        recurrence: s.isControl ? "one_off" : cfg.recurrence,
+        pv_benefits: pvb,
+        pv_costs: pvc,
+        npv,
+        bcr,
+        roi
+      });
+    }
+
+    // ranking (only included, non-control)
+    const rankable = results.filter(x=>!x.isControl && x.include && Number.isFinite(x.npv)).sort((a,b)=>b.npv-a.npv);
+    const rankMap = new Map();
+    for(let i=0;i<rankable.length;i++) rankMap.set(rankable[i].key, i+1);
+
+    for(const r0 of results){
+      if(r0.isControl){ r0.rank = 0; continue; }
+      r0.rank = rankMap.has(r0.key) ? rankMap.get(r0.key) : null;
+    }
+
+    // control for deltas: always 0 baseline
+    const ctl = results.find(x=>x.isControl) || null;
+
+    for(const r0 of results){
+      const baseNPV = ctl ? 0 : 0;
+      const basePVC = ctl ? 0 : 0;
+      const basePVB = ctl ? 0 : 0;
+
+      const dNpv = Number.isFinite(r0.npv) ? (r0.npv - baseNPV) : NaN;
+      const dPvc = Number.isFinite(r0.pv_costs) ? (r0.pv_costs - basePVC) : NaN;
+      const dPvb = Number.isFinite(r0.pv_benefits) ? (r0.pv_benefits - basePVB) : NaN;
+
+      r0.delta_npv = dNpv;
+      r0.delta_pv_costs = dPvc;
+      r0.delta_pv_benefits = dPvb;
+
+      r0.delta_npv_pct = (Number.isFinite(baseNPV) && baseNPV !== 0 && Number.isFinite(dNpv)) ? (dNpv/baseNPV) : NaN;
+      r0.delta_pv_costs_pct = (Number.isFinite(basePVC) && basePVC !== 0 && Number.isFinite(dPvc)) ? (dPvc/basePVC) : NaN;
+      r0.delta_pv_benefits_pct = (Number.isFinite(basePVB) && basePVB !== 0 && Number.isFinite(dPvb)) ? (dPvb/basePVB) : NaN;
+    }
+
+    return { T, price, r, persistenceName, persistenceWarn: adj.warn, results };
+  }
+
+  function computeFullSensitivityGrid(){
+    if(!state.treatmentStats) return [];
+    const out = [];
+    const T = Math.max(1, Math.floor(Number(state.scenario.horizon) || 10));
+    for(const price of state.scenario.prices){
+      for(const r of state.scenario.discounts){
+        for(const pn of Object.keys(state.scenario.persistence)){
+          const slice = computeScenarioSlice(Number(price), Number(r), pn);
+          if(!slice) continue;
+          for(const res of slice.results){
+            if(res.isControl) continue;
+            out.push({
+              price_aud_per_t: Number(price),
+              discount_rate: Number(r),
+              persistence: pn,
+              horizon_years: T,
+              treatment: res.name,
+              include: res.include,
+              recurrence: res.recurrence,
+              pv_benefits_per_ha: res.pv_benefits,
+              pv_costs_per_ha: res.pv_costs,
+              npv_per_ha: res.npv,
+              bcr: res.bcr,
+              roi: res.roi,
+              rank_by_npv: res.rank
+            });
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  // ---------- RENDERING ----------
+  const fmt = (n)=> (Number.isFinite(n) ? n.toLocaleString(undefined,{ maximumFractionDigits: 2 }) : "Not applicable");
+  const money = (n)=> (Number.isFinite(n) ? ("$"+n.toLocaleString(undefined,{ maximumFractionDigits: 2 })) : "Not applicable");
+
+  function diagItem(level, text){
+    return `<div class="diag-item ${level}">${text}</div>`;
+  }
+
+  function renderDiagnostics(){
+    const root = $("#faba-diagnostics");
+    if(!root) return;
+    const v = state.validation;
+    if(!v){
+      root.innerHTML = diagItem("warn","No data loaded yet. Upload or paste the dataset, then validate.");
+      return;
+    }
+    root.innerHTML = v.issues.map(x=>diagItem(x.level, x.msg)).join("");
+  }
+
+  function renderDataChecks(){
+    const root = $("#faba-data-checks");
+    if(!root) return;
+    const s = state.validation?.scaling || [];
+    if(!s.length){
+      root.innerHTML = diagItem("good","No amendments triggered the scaling rule (raw amendment input cost per hectare above 1000).");
+      return;
+    }
+    const rows = s.slice(0,30).map(x=>{
+      return `<div class="diag-item warn">
+        <div><strong>${x.amendment_name}</strong> scaled in ${x.count} plot(s).</div>
+        <div class="small muted">Raw mean ${money(x.raw_mean)} (range ${money(x.raw_min)} to ${money(x.raw_max)}). Adjusted mean ${money(x.adj_mean)} (range ${money(x.adj_min)} to ${money(x.adj_max)}).</div>
+      </div>`;
+    }).join("");
+    root.innerHTML = rows + (s.length>30 ? diagItem("warn",`Showing first 30 amendments. Total amendments scaled: ${s.length}.`) : "");
+  }
+
+  function renderPreviewTable(){
+    const tbl = $("#faba-preview");
+    if(!tbl) return;
+    const thead = tbl.querySelector("thead");
+    const tbody = tbl.querySelector("tbody");
+    if(!thead || !tbody) return;
+
+    tbody.innerHTML = "";
+    thead.innerHTML = "";
+
+    if(!state.rows.length || !state.columns.length){
+      thead.innerHTML = "<tr><th>No data</th></tr>";
+      return;
+    }
+    const cols = state.columns.slice(0, Math.min(8, state.columns.length));
+    const header = cols.map(c=>{
+      const tip = colTip(c);
+      return `<th ${tip? `data-tip="${escapeHtml(tip)}"`:""}>${escapeHtml(colLabel(c))}</th>`;
+    }).join("");
+    thead.innerHTML = `<tr>${header}</tr>`;
+
+    for(const r of state.rows.slice(0,10)){
+      const row = cols.map(c=>`<td>${escapeHtml(String(r[c] ?? ""))}</td>`).join("");
+      tbody.innerHTML += `<tr>${row}</tr>`;
+    }
+  }
+
+  function escapeHtml(s){
+    return (s??"").toString().replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+
+  function renderConfigTable(){
+    const tbody = $("#faba-config tbody");
+    if(!tbody || !state.treatmentStats) return;
+    tbody.innerHTML = "";
+
+    for(const s of state.treatmentStats.stats){
+      const cfg = state.config.get(s.key) || { include:true, recurrence:"one_off", customCostPath:null };
+      const isControl = s.isControl;
+
+      const include = isControl ? true : !!cfg.include;
+      const recur = isControl ? "one_off" : (cfg.recurrence || "one_off");
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(isControl ? "Control (baseline)" : s.name)}</td>
+        <td>${isControl ? '<span class="pill">Yes</span>' : ''}</td>
+        <td>
+          <input type="checkbox" data-faba-include="${escapeHtml(s.key)}" ${include ? "checked":""} ${isControl ? "disabled":""} />
+        </td>
+        <td>
+          <select data-faba-recur="${escapeHtml(s.key)}" ${isControl ? "disabled":""}>
+            <option value="one_off" ${recur==="one_off"?"selected":""}>One-off upfront</option>
+            <option value="annual" ${recur==="annual"?"selected":""}>Annual</option>
+            <option value="custom" ${recur==="custom"?"selected":""}>Custom</option>
+          </select>
+        </td>
+        <td class="right mono">${Number(s.n_plots||0).toLocaleString()}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    tbody.onchange = (e)=>{
+      const incKey = e.target?.dataset?.fabaInclude;
+      const recKey = e.target?.dataset?.fabaRecur;
+
+      if(incKey){
+        const cfg = state.config.get(incKey) || { include:true, recurrence:"one_off", customCostPath:null };
+        cfg.include = !!e.target.checked;
+        state.config.set(incKey, cfg);
+        toast("Configuration updated.");
+        recalcAndRender();
+        renderGlance();
+        return;
+      }
+      if(recKey){
+        const cfg = state.config.get(recKey) || { include:true, recurrence:"one_off", customCostPath:null };
+        cfg.recurrence = String(e.target.value || "one_off");
+        if(cfg.recurrence === "custom" && !Array.isArray(cfg.customCostPath)){
+          // default custom path: treat like annual by default
+          cfg.customCostPath = new Array(Math.max(1, Math.floor(Number(state.scenario.horizon)||10))).fill(1);
+        }
+        state.config.set(recKey, cfg);
+        toast("Cost recurrence updated.");
+        recalcAndRender();
+        renderGlance();
+      }
+    };
+  }
+
+  function renderGlance(){
+    const root = $("#faba-glance");
+    if(!root) return;
+
+    const repCount = state.replicateStats?.repMap?.size || 0;
+    const repsNoCtrl = state.replicateStats?.repsWithNoCtrl || 0;
+    const nRows = state.rows.length;
+    const stats = state.treatmentStats?.stats || [];
+    const nTrt = stats.filter(s=>!s.isControl).length;
+    const nCtrl = stats.filter(s=>s.isControl).length;
+
+    root.innerHTML = `
+      <div><span class="k">Price</span><span class="v">${money(Number(state.scenario.selectedPrice))} per tonne</span></div>
+      <div><span class="k">Discount rate</span><span class="v">${(Number(state.scenario.selectedDiscount)*100).toFixed(2)}%</span></div>
+      <div><span class="k">Persistence</span><span class="v">${escapeHtml(state.scenario.selectedPersistence)}</span></div>
+      <div><span class="k">Horizon</span><span class="v">${Math.max(1,Math.floor(Number(state.scenario.horizon)||10))} years</span></div>
+      <div><span class="k">Plots</span><span class="v">${nRows.toLocaleString()}</span></div>
+      <div><span class="k">Replicates</span><span class="v">${repCount.toLocaleString()}${repsNoCtrl? ` (missing controls: ${repsNoCtrl})`:""}</span></div>
+      <div><span class="k">Treatments</span><span class="v">${nTrt.toLocaleString()}</span></div>
+      <div><span class="k">Controls</span><span class="v">${nCtrl.toLocaleString()}</span></div>
+    `;
+    const trtEl = $("#faba-trt");
+    if(trtEl) trtEl.textContent = String(nTrt);
+  }
+
+  function renderScenarioSelectors(){
+    const priceSel = $("#faba-price");
+    const discSel = $("#faba-discount");
+    const persSel = $("#faba-persist");
+    const persJson = $("#faba-persist-json");
+    if(persJson){
+      persJson.value = JSON.stringify(state.scenario.persistence, null, 2);
+    }
+
+    if(priceSel){
+      priceSel.innerHTML = state.scenario.prices.map(p=>`<option value="${p}" ${Number(p)===Number(state.scenario.selectedPrice)?"selected":""}>${p}</option>`).join("");
+    }
+    if(discSel){
+      discSel.innerHTML = state.scenario.discounts.map(d=>`<option value="${d}" ${Number(d)===Number(state.scenario.selectedDiscount)?"selected":""}>${(Number(d)*100).toFixed(2)}%</option>`).join("");
+    }
+    if(persSel){
+      persSel.innerHTML = Object.keys(state.scenario.persistence).map(k=>`<option value="${escapeHtml(k)}" ${k===state.scenario.selectedPersistence?"selected":""}>${escapeHtml(k)}</option>`).join("");
+    }
+  }
+
+  function renderLeaderboard(slice){
+    const root = $("#faba-leaderboard");
+    if(!root) return;
+    const scale = Number(state.scenario.scale)||1;
+
+    const rows = slice.results
+      .filter(x=>!x.isControl)
+      .filter(x=>state.filters.mode==="all" ? true : state.filters.mode==="improve" ? (Number.isFinite(x.npv) && x.npv>0) : true);
+
+    let shown = rows.slice();
+    if(state.filters.mode==="topnpv"){
+      shown = shown.filter(x=>x.include).sort((a,b)=>(Number.isFinite(b.npv)?b.npv:-Infinity)-(Number.isFinite(a.npv)?a.npv:-Infinity)).slice(0,5);
+    } else if(state.filters.mode==="topbcr"){
+      shown = shown.filter(x=>x.include).sort((a,b)=>(Number.isFinite(b.bcr)?b.bcr:-Infinity)-(Number.isFinite(a.bcr)?a.bcr:-Infinity)).slice(0,5);
+    } else if(state.filters.mode==="improve"){
+      shown = shown.filter(x=>x.include && Number.isFinite(x.npv) && x.npv>0);
+    } else {
+      shown = shown.sort((a,b)=>{
+        const ra = (a.rank==null)? 1e9 : a.rank;
+        const rb = (b.rank==null)? 1e9 : b.rank;
+        return ra-rb;
+      });
+    }
+
+    root.innerHTML = shown.map(x=>{
+      const npv = x.npv*scale;
+      const pvb = x.pv_benefits*scale;
+      const pvc = x.pv_costs*scale;
+      const rank = (x.rank==null) ? "Not ranked" : String(x.rank);
+      const cls = (Number.isFinite(x.npv) && x.npv>=0) ? "good" : "bad";
+      return `
+        <div class="lb-row">
+          <div><div class="h">Rank</div><div class="b">${rank}</div></div>
+          <div><div class="h">Treatment</div><div class="b">${escapeHtml(x.name)}</div></div>
+          <div><div class="h">Net present value</div><div class="b mono ${cls}">${money(npv)}</div></div>
+          <div><div class="h">Net present value for 100 hectares</div><div class="b mono">${money(x.npv*100)}</div></div>
+          <div><div class="h">Net present value for 3300 hectares</div><div class="b mono">${money(x.npv*3300)}</div></div>
+          <div><div class="h">Present value of benefits</div><div class="b mono">${money(pvb)}</div></div>
+          <div><div class="h">Present value of costs</div><div class="b mono">${money(pvc)}</div></div>
+        </div>
+      `;
+    }).join("");
+
+    if(!shown.length){
+      root.innerHTML = `<div class="diag-item warn">No treatments match the current filter.</div>`;
+    }
+  }
+
+  function renderComparisonTable(slice){
+    const table = $("#faba-compare");
+    if(!table) return;
+    const thead = table.querySelector("thead");
+    const tbody = table.querySelector("tbody");
+    if(!thead || !tbody) return;
+
+    const scale = Number(state.scenario.scale)||1;
+    const control = slice.results.find(x=>x.isControl);
+
+    // choose displayed treatments based on filter
+    let treatments = slice.results.filter(x=>!x.isControl);
+    if(state.filters.mode==="topnpv"){
+      treatments = treatments.filter(x=>x.include).sort((a,b)=>(Number.isFinite(b.npv)?b.npv:-Infinity)-(Number.isFinite(a.npv)?a.npv:-Infinity)).slice(0,5);
+    } else if(state.filters.mode==="topbcr"){
+      treatments = treatments.filter(x=>x.include).sort((a,b)=>(Number.isFinite(b.bcr)?b.bcr:-Infinity)-(Number.isFinite(a.bcr)?a.bcr:-Infinity)).slice(0,5);
+    } else if(state.filters.mode==="improve"){
+      treatments = treatments.filter(x=>x.include && Number.isFinite(x.npv) && x.npv>0);
+    } else {
+      treatments = treatments.sort((a,b)=>{
+        const ra = (a.rank==null)? 1e9 : a.rank;
+        const rb = (b.rank==null)? 1e9 : b.rank;
+        return ra-rb;
+      });
+    }
+
+    const cols = [control].concat(treatments).filter(Boolean);
+
+    const colHeads = cols.map(x=>{
+      const tip = x.isControl ? "Baseline. All treatment results are incremental relative to the replicate-specific control means." : `Cost recurrence: ${x.recurrence}. Included in ranking: ${x.include ? "Yes":"No"}.`;
+      return `<th data-tip="${escapeHtml(tip)}">${escapeHtml(x.name)}</th>`;
+    }).join("");
+
+    // For each treatment, add a delta vs control column
+    const deltaHeads = treatments.map(x=>{
+      return `<th data-tip="Difference from control under the selected scenario. Percent is shown only where meaningful.">Δ vs control</th>`;
+    }).join("");
+
+    thead.innerHTML = `<tr><th>Indicator</th>${colHeads}${deltaHeads}</tr>`;
+
+    const indicators = [
+      { key:"pv_benefits", label:"Present value of benefits", fmt:(v)=>money(v*scale), good:(v)=>Number.isFinite(v) && v>=0 },
+      { key:"pv_costs", label:"Present value of costs", fmt:(v)=>money(v*scale), good:(v)=>Number.isFinite(v) && v<=0 ? false : true },
+      { key:"npv", label:"Net present value", fmt:(v)=>money(v*scale), good:(v)=>Number.isFinite(v) && v>=0 },
+      { key:"bcr", label:"Benefit–cost ratio", fmt:(v)=> (Number.isFinite(v)? fmt(v) : "Not applicable"), good:(v)=>Number.isFinite(v) && v>=1 },
+      { key:"roi", label:"Return on investment", fmt:(v)=> (Number.isFinite(v)? fmt(v) : "Not applicable"), good:(v)=>Number.isFinite(v) && v>=0 },
+      { key:"rank", label:"Rank by net present value", fmt:(v)=> (v==null? "Not ranked" : String(v)), good:(_)=>true }
+    ];
+
+    tbody.innerHTML = "";
+    for(const ind of indicators){
+      const row = document.createElement("tr");
+      let tds = `<td class="mono"><strong>${escapeHtml(ind.label)}</strong></td>`;
+
+      for(const c of cols){
+        const v = c[ind.key];
+        const cls = c.isControl ? "neu" : (ind.good(v) ? "good" : "bad");
+        tds += `<td class="mono"><span class="val ${cls}">${ind.fmt(v)}</span></td>`;
+      }
+
+      // delta columns
+      for(const t of treatments){
+        let deltaAbs = NaN, deltaPct = NaN, base = 0;
+        if(ind.key === "npv"){ deltaAbs = t.delta_npv; base = 0; }
+        if(ind.key === "pv_costs"){ deltaAbs = t.delta_pv_costs; base = 0; }
+        if(ind.key === "pv_benefits"){ deltaAbs = t.delta_pv_benefits; base = 0; }
+
+        // Only percent where meaningful (non-zero baseline); baseline is 0 here because the PVs are incremental vs control by construction.
+        // Therefore show only absolute deltas and label percent as Not applicable.
+        const absTxt = Number.isFinite(deltaAbs) ? money(deltaAbs*scale) : "Not applicable";
+        const pctTxt = "Not applicable";
+
+        let cls = "neu";
+        if(ind.key === "pv_costs" && Number.isFinite(deltaAbs)){
+          // lower costs favourable
+          cls = deltaAbs <= 0 ? "good" : "bad";
+        } else if((ind.key === "npv" || ind.key === "pv_benefits") && Number.isFinite(deltaAbs)){
+          cls = deltaAbs >= 0 ? "good" : "bad";
+        }
+
+        if(ind.key === "npv" || ind.key === "pv_costs" || ind.key === "pv_benefits"){
+          tds += `<td class="mono"><span class="val ${cls}">${absTxt}</span><div class="small muted">${pctTxt}</div></td>`;
+        } else {
+          tds += `<td class="mono"><span class="val neu">Not applicable</span></td>`;
+        }
+      }
+
+      row.innerHTML = tds;
+      tbody.appendChild(row);
+    }
+  }
+
+  function buildMeaningText(slice){
+    const root = $("#faba-meaning");
+    if(!root) return;
+
+    const price = Number(slice.price);
+    const rPct = (Number(slice.r)*100);
+    const pers = slice.persistenceName;
+
+    const trt = slice.results.filter(x=>!x.isControl && x.include && Number.isFinite(x.npv));
+    const top = trt.slice().sort((a,b)=>b.npv-a.npv)[0] || null;
+    const bottom = trt.slice().sort((a,b)=>a.npv-b.npv)[0] || null;
+
+    let txt = "";
+    txt += `Under the selected settings, the tool compares each amendment package to the replicate-specific control plots. The selected grain price is ${money(price)} per tonne, the discount rate is ${rPct.toFixed(2)} percent, the yield persistence pattern is ${pers}, and the time horizon is ${slice.T} years. `;
+
+    if(slice.persistenceWarn){
+      txt += `A persistence adjustment was applied because the persistence vector did not match the horizon. ${slice.persistenceWarn} `;
+    }
+
+    if(!trt.length){
+      txt += `No treatments are currently eligible for ranking under this slice, either because they are excluded in Configuration or because there is insufficient numeric data to compute net present value. `;
+      root.textContent = txt;
+      return;
+    }
+
+    txt += `The strongest performer by net present value in this slice is ${top.name}. Its net present value is ${money(top.npv)} per hectare, which reflects present value of benefits of ${money(top.pv_benefits)} per hectare and present value of costs of ${money(top.pv_costs)} per hectare. `;
+    txt += `The weakest performer in this slice is ${bottom.name}, with net present value of ${money(bottom.npv)} per hectare. `;
+
+    const drivers = (x)=>{
+      if(!Number.isFinite(x.pv_benefits) || !Number.isFinite(x.pv_costs)) return "";
+      if(x.pv_benefits <= 0 && x.pv_costs > 0) return "low or negative yield benefit combined with added cost";
+      if(x.pv_benefits > 0 && x.pv_costs <= 0) return "benefits with little or negative added cost";
+      if(x.pv_benefits > x.pv_costs) return "benefits that outweigh costs";
+      return "costs that outweigh benefits";
+    };
+
+    txt += `In practical terms, treatments look better than control when the additional yield benefit persists for more years or when costs are one-off rather than repeated annually. In this slice, ${top.name} is mainly driven by ${drivers(top)}, while ${bottom.name} is mainly driven by ${drivers(bottom)}. `;
+    txt += `If grain price increases, the value of any positive yield change rises proportionally, which can move treatments up the ranking. If the persistence pattern decays quickly, only treatments with strong first-year yield benefits tend to remain attractive. If you switch a treatment’s cost recurrence from one-off to annual, present value of costs rises over time and net present value can fall substantially. `;
+
+    root.textContent = txt;
+  }
+
+  function buildAI(slice){
+    const promptEl = $("#faba-ai-prompt");
+    if(!promptEl) return;
+
+    const scale = Number(state.scenario.scale)||1;
+
+    const ranked = slice.results.filter(x=>!x.isControl && x.include).slice().sort((a,b)=>{
+      const na = Number.isFinite(a.npv) ? a.npv : -Infinity;
+      const nb = Number.isFinite(b.npv) ? b.npv : -Infinity;
+      return nb-na;
+    });
+
+    const top = ranked.slice(0,5);
+    const worst = ranked.slice(-3);
+
+    const summaryLine = (x)=> {
+      return `${x.name} has net present value of ${money(x.npv*scale)} with present value of benefits of ${money(x.pv_benefits*scale)} and present value of costs of ${money(x.pv_costs*scale)} under the selected recurrence setting.`;
+    };
+
+    const p = Number(slice.price);
+    const rPct = (Number(slice.r)*100);
+    const pers = slice.persistenceName;
+    const T = slice.T;
+
+    let text = "";
+    text += `Write a farmer-facing policy brief about a faba bean soil amendment trial. Use plain language and do not use bullet points or abbreviations. Use short paragraphs. The brief must be based only on the results provided below and must not introduce new assumptions. `;
+    text += `The analysis compares each amendment treatment to replicate-specific control plots. The selected scenario settings are a grain price of ${money(p)} per tonne, a discount rate of ${rPct.toFixed(2)} percent, a yield persistence pattern of ${pers}, and a time horizon of ${T} years. Costs are handled using the recurrence setting shown for each treatment. `;
+    text += `Explain what is driving differences across treatments by separating benefits and costs, and explain how conclusions change if grain price, persistence, or cost recurrence changes. Include uncertainty and data quality caveats, especially where replicates lack controls or numeric fields have missing values. `;
+    text += `Now use these computed results. `;
+
+    if(top.length){
+      text += `The top treatments by net present value in this slice are as follows. `;
+      for(const x of top){
+        text += summaryLine(x) + " ";
+      }
+    }
+    if(worst.length){
+      text += `Treatments that perform worst in this slice include the following. `;
+      for(const x of worst){
+        text += summaryLine(x) + " ";
+      }
+    }
+
+    text += `Also include a section that translates results to total impacts for 100 hectares and for 3300 hectares using the same per-hectare net present values. `;
+    promptEl.value = text;
+
+    // JSON
+    const payload = {
+      scenario: {
+        price_aud_per_t: p,
+        discount_rate: Number(slice.r),
+        persistence: pers,
+        horizon_years: T,
+        scale: Number(state.scenario.scale)||1
+      },
+      treatments: slice.results.map(x=>({
+        name: x.name,
+        is_control: x.isControl,
+        include: x.include,
+        recurrence: x.recurrence,
+        pv_benefits_per_ha: x.pv_benefits,
+        pv_costs_per_ha: x.pv_costs,
+        npv_per_ha: x.npv,
+        bcr: x.bcr,
+        roi: x.roi,
+        rank_by_npv: x.rank,
+        delta_npv_per_ha: x.delta_npv,
+        delta_pv_benefits_per_ha: x.delta_pv_benefits,
+        delta_pv_costs_per_ha: x.delta_pv_costs
+      }))
+    };
+    state._latestJSON = payload;
+  }
+
+  function recalcAndRender(){
+    if(!state.committed || !state.treatmentStats){
+      return;
+    }
+    const slice = computeScenarioSlice(
+      Number(state.scenario.selectedPrice),
+      Number(state.scenario.selectedDiscount),
+      String(state.scenario.selectedPersistence)
+    );
+    if(!slice) return;
+
+    renderGlance();
+    renderLeaderboard(slice);
+    renderComparisonTable(slice);
+    buildMeaningText(slice);
+    buildAI(slice);
+  }
+
+  // ---------- EXPORTS ----------
+  function toTSV(rows, columns){
+    const header = columns.join("\t");
+    const lines = [header];
+    for(const r of rows){
+      const line = columns.map(c=>String(r[c]??"")).join("\t");
+      lines.push(line);
+    }
+    return lines.join("\n");
+  }
+  function toCSV(rows, columns){
+    const esc = (v)=>{
+      const s = String(v??"");
+      if(/[",\n]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+      return s;
+    };
+    const header = columns.map(esc).join(",");
+    const lines = [header];
+    for(const r of rows){
+      lines.push(columns.map(c=>esc(r[c])).join(","));
+    }
+    return lines.join("\n");
+  }
+
+  function exportCleanedTSV(){
+    if(!state.rows.length) return;
+    // cleaned means: same columns, values preserved; missing markers remain as blanks; we do not drop columns
+    const cleaned = state.rows.map(r=>{
+      const o = {};
+      for(const c of state.columns){
+        const v = r[c];
+        o[c] = (isMissing(v) ? "" : v);
+      }
+      return o;
+    });
+    downloadFile("faba_beans_cleaned_export.tsv", toTSV(cleaned, state.columns), "text/tab-separated-values");
+    toast("Cleaned dataset exported as TSV.");
+  }
+
+  function exportTreatmentSummaryCSV(){
+    if(!state.treatmentStats) return;
+    const cols = [
+      "treatment","is_control","n_plots","mean_yield_t_ha","sd_yield_t_ha","mean_cost_per_ha","sd_cost_per_ha",
+      "mean_delta_yield_t_ha","sd_delta_yield_t_ha","mean_delta_cost_per_ha","sd_delta_cost_per_ha"
+    ];
+    const rows = state.treatmentStats.stats.map(s=>({
+      treatment: s.isControl ? "Control" : s.name,
+      is_control: s.isControl ? 1 : 0,
+      n_plots: s.n_plots,
+      mean_yield_t_ha: s.mean_yield_t_ha,
+      sd_yield_t_ha: s.sd_yield_t_ha,
+      mean_cost_per_ha: s.mean_cost_per_ha,
+      sd_cost_per_ha: s.sd_cost_per_ha,
+      mean_delta_yield_t_ha: s.isControl ? 0 : s.mean_delta_yield_t_ha,
+      sd_delta_yield_t_ha: s.sd_delta_yield_t_ha,
+      mean_delta_cost_per_ha: s.isControl ? 0 : s.mean_delta_cost_per_ha,
+      sd_delta_cost_per_ha: s.sd_delta_cost_per_ha
+    }));
+    downloadFile("faba_beans_treatment_summary.csv", toCSV(rows, cols), "text/csv");
+    toast("Treatment summary exported as CSV.");
+  }
+
+  function exportSensitivityGridCSV(){
+    const grid = computeFullSensitivityGrid();
+    const cols = [
+      "price_aud_per_t","discount_rate","persistence","horizon_years","treatment","include","recurrence",
+      "pv_benefits_per_ha","pv_costs_per_ha","npv_per_ha","bcr","roi","rank_by_npv"
+    ];
+    downloadFile("faba_beans_sensitivity_grid.csv", toCSV(grid, cols), "text/csv");
+    toast("Sensitivity grid exported as CSV.");
+  }
+
+  // ---------- SCENARIO SAVE/LOAD ----------
+  const SCEN_KEY = "faba_cba_scenario_v1";
+  function saveScenario(){
+    const payload = {
+      scenario: state.scenario,
+      config: Array.from(state.config.entries())
+    };
+    localStorage.setItem(SCEN_KEY, JSON.stringify(payload));
+    toast("Scenario saved to local storage.");
+  }
+  function loadScenario(){
+    const raw = localStorage.getItem(SCEN_KEY);
+    if(!raw){
+      toast("No saved scenario found.");
+      return;
+    }
+    try{
+      const obj = JSON.parse(raw);
+      if(obj?.scenario){
+        state.scenario = obj.scenario;
+      }
+      if(Array.isArray(obj?.config)){
+        state.config = new Map(obj.config);
+      }
+      // normalise persistence json if missing
+      if(!state.scenario.persistence || typeof state.scenario.persistence !== "object"){
+        state.scenario.persistence = JSON.parse(JSON.stringify(DEFAULT.persistence));
+      }
+      renderScenarioSelectors();
+      renderConfigTable();
+      renderGlance();
+      recalcAndRender();
+      toast("Scenario loaded.");
+    }catch(e){
+      toast("Saved scenario could not be read.");
+    }
+  }
+
+  // ---------- EVENTS ----------
+  async function readFileToText(input, assign){
+    const file = input?.files?.[0];
+    if(!file) return;
+    const text = await file.text();
+    assign(text);
+  }
+
+  function applyScenarioLists(){
+    const pList = ($("#faba-price-list")?.value || "").split(",").map(s=>Number(s.trim())).filter(n=>Number.isFinite(n));
+    const dList = ($("#faba-discount-list")?.value || "").split(",").map(s=>Number(s.trim())).filter(n=>Number.isFinite(n));
+    let pers = null;
+    try{
+      pers = JSON.parse($("#faba-persist-json")?.value || "{}");
+    }catch(_){
+      pers = null;
+    }
+    const persOk = pers && typeof pers === "object" && Object.keys(pers).length>0 && Object.values(pers).every(v=>Array.isArray(v));
+    if(!pList.length || !dList.length || !persOk){
+      toast("Scenario lists are invalid. Ensure prices, discount rates, and persistence JSON are valid.");
+      return;
+    }
+    state.scenario.prices = pList;
+    state.scenario.discounts = dList;
+    state.scenario.persistence = pers;
+    // reset selections if invalid
+    if(!state.scenario.prices.includes(Number(state.scenario.selectedPrice))) state.scenario.selectedPrice = state.scenario.prices[0];
+    if(!state.scenario.discounts.includes(Number(state.scenario.selectedDiscount))) state.scenario.selectedDiscount = state.scenario.discounts[0];
+    if(!Object.keys(state.scenario.persistence).includes(state.scenario.selectedPersistence)) state.scenario.selectedPersistence = Object.keys(state.scenario.persistence)[0];
+    renderScenarioSelectors();
+    recalcAndRender();
+    toast("Scenario lists applied.");
+  }
+
+  function bindUI(){
+    // Import
+    const file = $("#faba-file");
+    const dictFile = $("#faba-dict-file");
+    const paste = $("#faba-paste");
+    const dictPaste = $("#faba-dict-paste");
+    const validateBtn = $("#faba-validate");
+    const commitBtn = $("#faba-commit");
+
+    if(file){
+      file.addEventListener("change", ()=>readFileToText(file, (t)=>{ state.rawText=t; const p=parseDelimited(t); state.columns=p.columns; state.rows=p.rows; renderPreviewTable(); toast("Dataset loaded. Validate next."); }));
+    }
+    if(dictFile){
+      dictFile.addEventListener("change", ()=>readFileToText(dictFile, (t)=>{ state.dictText=t; state.dict=parseDictionaryCSV(t); toast("Dictionary loaded."); renderPreviewTable(); }));
+    }
+    if(validateBtn){
+      validateBtn.addEventListener("click", ()=>{
+        // choose paste over file if paste present
+        const pasted = (paste?.value||"").trim();
+        if(pasted){
+          state.rawText = pasted;
+          const p = parseDelimited(pasted);
+          state.columns = p.columns;
+          state.rows = p.rows;
+        }
+        const dp = (dictPaste?.value||"").trim();
+        if(dp){
+          state.dictText = dp;
+          state.dict = parseDictionaryCSV(dp);
+        }
+        validateAndSummarise();
+      });
+    }
+    if(commitBtn){
+      commitBtn.addEventListener("click", ()=>commitDataset());
+    }
+
+    const exportClean = $("#faba-export-clean");
+    if(exportClean) exportClean.addEventListener("click", exportCleanedTSV);
+
+    // Scenario controls
+    const horizon = $("#faba-horizon");
+    const priceSel = $("#faba-price");
+    const discSel = $("#faba-discount");
+    const persSel = $("#faba-persist");
+    const scaleSel = $("#faba-scale");
+
+    if(horizon){
+      horizon.addEventListener("input", ()=>{
+        const T = Math.max(1, Math.floor(Number(horizon.value)||10));
+        state.scenario.horizon = T;
+        // safety: adjust custom cost paths lengths lazily
+        toast("Time horizon updated.");
+        recalcAndRender();
+        renderGlance();
+      });
+    }
+    if(priceSel){
+      priceSel.addEventListener("change", ()=>{
+        state.scenario.selectedPrice = Number(priceSel.value);
+        toast("Price scenario updated.");
+        recalcAndRender();
+        renderGlance();
+      });
+    }
+    if(discSel){
+      discSel.addEventListener("change", ()=>{
+        state.scenario.selectedDiscount = Number(discSel.value);
+        toast("Discount rate updated.");
+        recalcAndRender();
+        renderGlance();
+      });
+    }
+    if(persSel){
+      persSel.addEventListener("change", ()=>{
+        state.scenario.selectedPersistence = String(persSel.value);
+        toast("Persistence pattern updated.");
+        recalcAndRender();
+        renderGlance();
+      });
+    }
+    if(scaleSel){
+      scaleSel.addEventListener("change", ()=>{
+        state.scenario.scale = Number(scaleSel.value)||1;
+        toast("Result scaling updated.");
+        recalcAndRender();
+      });
+    }
+
+    const applyListsBtn = $("#faba-apply-scenario-lists");
+    if(applyListsBtn) applyListsBtn.addEventListener("click", applyScenarioLists);
+
+    // Filters
+    const topNpv = $("#faba-filter-topnpv");
+    const topBcr = $("#faba-filter-topbcr");
+    const improve = $("#faba-filter-improve");
+    const all = $("#faba-filter-all");
+
+    if(topNpv) topNpv.addEventListener("click", ()=>{ state.filters.mode="topnpv"; toast("Filter applied."); recalcAndRender(); });
+    if(topBcr) topBcr.addEventListener("click", ()=>{ state.filters.mode="topbcr"; toast("Filter applied."); recalcAndRender(); });
+    if(improve) improve.addEventListener("click", ()=>{ state.filters.mode="improve"; toast("Filter applied."); recalcAndRender(); });
+    if(all) all.addEventListener("click", ()=>{ state.filters.mode="all"; toast("Filter cleared."); recalcAndRender(); });
+
+    // Config buttons
+    const applyCfg = $("#faba-apply-config");
+    const viewSum = $("#faba-view-summary");
+    if(applyCfg) applyCfg.addEventListener("click", ()=>{ toast("Configuration applied."); recalcAndRender(); renderGlance(); });
+    if(viewSum) viewSum.addEventListener("click", ()=>{ toast("Results summary refreshed."); recalcAndRender(); });
+
+    // Exports
+    const expTrt = $("#faba-export-treatments");
+    const expGrid = $("#faba-export-grid");
+    if(expTrt) expTrt.addEventListener("click", exportTreatmentSummaryCSV);
+    if(expGrid) expGrid.addEventListener("click", exportSensitivityGridCSV);
+
+    // Scenario save/load
+    const saveBtn = $("#faba-save-scenario");
+    const loadBtn = $("#faba-load-scenario");
+    if(saveBtn) saveBtn.addEventListener("click", saveScenario);
+    if(loadBtn) loadBtn.addEventListener("click", loadScenario);
+
+    // Copy buttons
+    const copyPrompt = $("#faba-copy-prompt");
+    const copyJson = $("#faba-copy-json");
+    if(copyPrompt){
+      copyPrompt.addEventListener("click", async ()=>{
+        const val = $("#faba-ai-prompt")?.value || "";
+        await navigator.clipboard.writeText(val);
+        toast("Briefing prompt copied.");
+      });
+    }
+    if(copyJson){
+      copyJson.addEventListener("click", async ()=>{
+        const txt = JSON.stringify(state._latestJSON || {}, null, 2);
+        await navigator.clipboard.writeText(txt);
+        toast("Results JSON copied.");
+      });
+    }
+
+    // Init scenario selectors
+    renderScenarioSelectors();
+    renderGlance();
+  }
+
+  // ---------- INIT ----------
+  document.addEventListener("DOMContentLoaded", ()=>{
+    // Only bind if the panel exists
+    if($("#tab-faba") || $("#faba-validate")){
+      // seed persistence JSON into textarea if present
+      const persJson = $("#faba-persist-json");
+      if(persJson && !persJson.value.trim()){
+        persJson.value = JSON.stringify(state.scenario.persistence, null, 2);
+      }
+      bindUI();
+    }
+  });
+
+})();
